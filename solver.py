@@ -1,6 +1,6 @@
 from ngsolve import *
 
-def SolvePoisson(mesh, d, lam, fractal_level):
+def SolvePoisson(mesh, d, lam):
     if lam > 0:
         fes = H1(mesh, order=3, dirichlet="bottom", autoupdate=True)
     else:

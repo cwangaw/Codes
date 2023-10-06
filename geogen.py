@@ -1,6 +1,6 @@
 import netgen.gui
 
-from math import sin,cos,sqrt,pi
+from numpy import sin,cos,pi
 from ngsolve import Mesh
 from ngsolve.webgui import Draw
 from netgen.geom2d import SplineGeometry
