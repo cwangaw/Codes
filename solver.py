@@ -26,7 +26,7 @@ def SolvePoisson(mesh, deg=1, D=1, Lambda=1, f=0, g_b=0, g_l=0, g_r=0, g_t=0):
         on bottom edge: u = g_b
         on left edge: D * du/dn = g_l 
         on right edge: D * du/dn = g_r
-        on top: Lambda * du/dn + u = 0
+        on top: Lambda * du/dn + u = g_t
     
     The weak form is  a(u, v) = L(v), where
     if Lambda > 0, we have
