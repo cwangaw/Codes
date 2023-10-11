@@ -1,4 +1,3 @@
-from geogen import *
 from solver import *
 from ngsolve import *
 import matplotlib.pyplot as plt
