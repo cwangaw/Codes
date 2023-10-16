@@ -86,6 +86,7 @@ def SolvePoisson(mesh, deg=1, d=1, lam=1, f=0, g_b=0, g_l=0, g_r=0, g_t=0, bool_
         
     
     errs = []
+    runtimes = []
     
     # finite element space and gridfunction to represent
     # the heatflux:
@@ -118,29 +119,14 @@ def SolvePoisson(mesh, deg=1, d=1, lam=1, f=0, g_b=0, g_l=0, g_r=0, g_t=0, bool_
     start = timeit.default_timer()
 
     # refine the mesh and solve the equation until the H1 error is within the tolerance
+    # we note down the time after each time we run SolveBVP()
     with TaskManager():
         SolveBVP()
+        runtimes.append(timeit.default_timer() - start)
         while CalcError() > tol:
             mesh.Refine()
             SolveBVP()
-    
-    # stop the timer
-    stop = timeit.default_timer()
-    runtime = stop - start
-    
-    # plot the H1 error vs the number of DoFs
-    plt.figure()
-    plt.yscale('log')
-    plt.xscale('log')
-    plt.xlabel("ndof")
-    plt.ylabel("H1 error-estimate")
-    ndof,err = zip(*errs)
-    plt.plot(ndof,err, "-*")
-
-    plt.ion()
-    plt.show()
-
-    input("<press enter to quit>")
+            runtimes.append(timeit.default_timer() - start)
         
     if lam > 0:
         # the flux through the top of uh equals to <(d/lam)*u>_("top")
@@ -154,7 +140,7 @@ def SolvePoisson(mesh, deg=1, d=1, lam=1, f=0, g_b=0, g_l=0, g_r=0, g_t=0, bool_
         gradu1.Set(grad(uh)[1])
         flux_top = Integrate(-d*(gradu0*n[0]+gradu1*n[1]), mesh, BND, definedon=mesh.Boundaries("top"))
         
-    return uh, flux_top, runtime, fes.ndof
+    return uh, flux_top, runtimes, errs
 
 # update the pnts list and sgmnts list
 def FractalStructure(p_start, p_end, pnts, sgmnts, current_level):
@@ -218,7 +204,7 @@ if __name__ == "__main__":
     poly_deg = 2
     
     # set up the desired tolerance for the parameter eta in mesh refinment
-    tol = 1e-5
+    tol = 1e-6
     
     # mesh generation
     (mesh, ell_e, ell_p) = MakeGeometry(fractal_level)
@@ -240,20 +226,45 @@ if __name__ == "__main__":
     
     # Compare the running time and number of dofs for 
     # traditionally and adaptively refined mesh
-    result = open("comparison.txt", "a")
+    result = open("results/comparison.txt", "a")
     
+    errs_lst = []
+    runtimes_lst = []
     for is_adaptive in [True, False]:
         # initialize a new mesh, on which we solve the pde
         (mesh, ell_e, ell_p) = MakeGeometry(fractal_level)
-        (uh, flux, runtime, ndofs) = SolvePoisson(mesh, poly_deg, d, lam, f, g_b, g_l, g_r, g_t, is_adaptive, tol)
+        (uh, flux, runtimes, errs) = SolvePoisson(mesh, poly_deg, d, lam, f, g_b, g_l, g_r, g_t, is_adaptive, tol)
+        errs_lst.append(errs)
+        runtimes_lst.append(runtimes)
         
         # calculate and print the L2 error
         e = Integrate((uh-manu_sol)**2, mesh, VOL)
         e = sqrt(e)
         
         # append the results into the file
-        result.write("Adaptivity: " + str(is_adaptive) + ", Solving time: " + str(runtime) + ", nDoFs:" + str(ndofs) + ", Error:" + str(e) + '\n')
-    
+        result.write("Adaptivity: " + str(is_adaptive) + ", Solving time: " + str(runtimes[-1]) + ", nDoFs:" + str(errs[-1][0]) + ", Error:" + str(e) + '\n')
+        
     result.write('\n')
     result.close()
+    
+    # plot the H1 error vs the number of DoFs
+    plt.figure()
+    plt.xlabel("ndof")
+    plt.ylabel("H1 error-estimate")
+    ndof_a, err_a = zip(*(errs_lst[0]))
+    ndof_n, err_n = zip(*(errs_lst[1]))
+    plt.loglog(ndof_a,err_a, "*-", label="adaptive")
+    plt.loglog(ndof_n,err_n, '*-', label="not adaptive")
+    leg = plt.legend(loc='upper right')
+    plt.savefig("results/err_ndofs.png")
+    
+    # plot the H1 error vs runtime
+    plt.figure()
+    plt.xlabel("runtime")
+    plt.ylabel("H1 error-estimate")
+    plt.loglog(runtimes_lst[0],err_a, "*-", label="adaptive")
+    plt.loglog(runtimes_lst[1],err_n, '*-', label="not adaptive")
+    leg = plt.legend(loc='upper right')
+    plt.savefig("results/err_runtimes.png")    
+
     
