@@ -31,15 +31,15 @@ def SolvePoisson(mesh, deg=1, d=1, lam=1, f=0, g_b=0, g_l=0, g_r=0, g_t=0, bool_
         on right edge: d * du/dn = g_r
         on top: lam * du/dn + u = g_t
     
-    The weak form is  a(u, v) = rhs(v), where
+    The weak form is  a(u, v) = l(v), where
     if lam > 0, we have
         a(u, v) = (d * grad(u), grad(v)) + <d/lam * u, v>_("top")
         and
-        rhs(v) = (f, v) + <g_l, v>_("left") + <g_r, v>_("right") + <d/lam)*g_t, v>_("top")
+        l(v) = (f, v) + <g_l, v>_("left") + <g_r, v>_("right") + <d/lam)*g_t, v>_("top")
     if lam = 0, we have
         a(u, v) = (d * grad(u), grad(v))
         and
-        rhs(v) = (f, v) + <g_l, v>_("left") + <g_r, v>_("right")
+        l(v) = (f, v) + <g_l, v>_("left") + <g_r, v>_("right")
     Note: if lam = 0, the boundary condition on the top is dirichlet, not Robin    
     '''
     # initialize the finite element
@@ -59,13 +59,13 @@ def SolvePoisson(mesh, deg=1, d=1, lam=1, f=0, g_b=0, g_l=0, g_r=0, g_t=0, bool_
         a += d*grad(u)*grad(v)*dx
     a.Assemble()
 
-    # intialize and define the linear form rhs(v)
-    rhs = LinearForm(fes)
+    # intialize and define the linear form l(v)
+    l = LinearForm(fes)
     if lam > 0:
-        rhs += f*v*dx + g_l*v*ds("left") + g_r*v*ds("right") + (d/lam)*g_t*v*ds("top")
+        l += f*v*dx + g_l*v*ds("left") + g_r*v*ds("right") + (d/lam)*g_t*v*ds("top")
     else:
-        rhs += f*v*dx + g_l*v*ds("left") + g_r*v*ds("right")
-    rhs.Assemble()
+        l += f*v*dx + g_l*v*ds("left") + g_r*v*ds("right")
+    l.Assemble()
 
     # solution
     uh = GridFunction(fes, autoupdate=True)  
@@ -79,9 +79,9 @@ def SolvePoisson(mesh, deg=1, d=1, lam=1, f=0, g_b=0, g_l=0, g_r=0, g_t=0, bool_
     # solve for the free dofs
     def SolveBVP():
         a.Assemble()
-        rhs.Assemble()
+        l.Assemble()
         # Redraw (blocking=True)
-        r = rhs.vec - a.mat * uh.vec
+        r = l.vec - a.mat * uh.vec
         uh.vec.data += a.mat.Inverse(freedofs=fes.FreeDofs()) * r
         
     
@@ -254,5 +254,6 @@ if __name__ == "__main__":
         # append the results into the file
         result.write("Adaptivity: " + str(is_adaptive) + ", Solving time: " + str(runtime) + ", nDoFs:" + str(ndofs) + ", Error:" + str(e) + '\n')
     
+    result.write('\n')
     result.close()
     
