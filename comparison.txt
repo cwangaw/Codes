@@ -1,0 +1,3 @@
+
+Adaptivity: True, Solving time: 8.0605335, nDoFs:333601, Error:3.2908115832875455e-09
+Adaptivity: False, Solving time: 6.461994799999999, nDoFs:2078017, Error:8.904023610592171e-10

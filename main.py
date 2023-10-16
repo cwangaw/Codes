@@ -8,31 +8,37 @@ fractal_level = int(input("Enter the number of refinement steps for the pre-frac
 # set up the order of Lagrangian finite element
 poly_deg = 3
 
+# set up if we want to refine the mesh adaptively
+is_adaptive = True
+
+# set up the error tolerance for mesh refinement
+tol = 1e-5
+
 # set up the parameter for pde
-D = 1
+d = 1
 
 # mesh generation
-(mesh,l,L_p) = MakeGeometry(fractal_level)
+(mesh, ell_e, ell_p) = MakeGeometry(fractal_level)
 
-# initialize lists to store Lambda, total flux through the top edge, and D*L_p/Lambda for each run
-Lambda_lst = []
+# initialize lists to store lam, total flux through the top edge, and d*ell_p/lam for each run
+lam_lst = []
 flux_top_lst = []
 asymp_coeff_lst = []
 
-# solve the pde with Lambda = 0, 0.5*L_p, L_p, 1.5*L_p, ..., 50*L_p 
+# solve the pde with lam = 0, 0.5*ell_p, ell_p, 1.5*ell_p, ..., 50*ell_p 
 for i in range(101):
-    Lambda = i*0.5*L_p
-    (gfu, flux_top) = SolvePoisson(mesh, poly_deg, D, Lambda, 0, 1, 0, 0, 0)
+    lam = i*0.5*ell_p
+    (gfu, flux_top) = SolvePoisson(mesh, poly_deg, d, lam, 0, 1, 0, 0, 0, is_adaptive, tol)
 
-    Lambda_lst.append(Lambda)
+    lam_lst.append(lam)
     flux_top_lst.append(flux_top)
     if i > 0:
-        asymp_coeff_lst.append(D*L_p/Lambda)
+        asymp_coeff_lst.append(d*ell_p/lam)
 
-# plot the log scaled total flux through the top edge vs D*L_p/Lambda
+# plot the log scaled total flux through the top edge vs d*ell_p/lam
 plt.xlabel("$\Lambda$")
-plt.loglog(Lambda_lst, flux_top_lst, "-", label="Total flux through the top edge")
-plt.loglog(Lambda_lst[1:], asymp_coeff_lst, color = 'r', linestyle = '-', label="$D*L_p/\Lambda$")
+plt.loglog(lam_lst, flux_top_lst, "-", label="Total flux through the top edge")
+plt.loglog(lam_lst[1:], asymp_coeff_lst, color = 'r', linestyle = '-', label="$d*ell_p/\Lambda$")
 leg = plt.legend(loc='upper center')
 plt.title('Log scaled, level of refinement = ' + str(fractal_level), style='italic')
 plt.ion()
