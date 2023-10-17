@@ -7,3 +7,9 @@ Adaptivity: False, Solving time: 57.96253409999997, nDoFs:8301185, Error:1.11416
 Adaptivity: True, Solving time: 237.7141423, nDoFs:2850884, Error:1.3324575624727575e-10
 Adaptivity: False, Solving time: 57.83344840000001, nDoFs:8301185, Error:1.1141617066101963e-10
 
+Adaptivity: True, Solving time: 0.8830804000000001, nDoFs:34452, Error:1.050970378676742e-07
+Adaptivity: False, Solving time: 0.5069218000000002, nDoFs:130897, Error:5.6645969680334226e-08
+
+Adaptivity: True, Solving time: 0.3247356000000001, nDoFs:1903, Error:7.704311874721008e-06
+Adaptivity: False, Solving time: 0.48887880000000017, nDoFs:130897, Error:5.6645969700236695e-08
+
