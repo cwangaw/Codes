@@ -8,7 +8,7 @@ from numpy import sin,cos,pi
 #from ngsolve.webgui import Draw
 from netgen.geom2d import SplineGeometry
 
-def SolvePoisson(mesh, deg=1, d=1, lam=1, f=0, g_b=0, g_l=0, g_r=0, g_t=0, bool_adaptive = False, tol = 1e-5):
+def SolvePoisson(mesh, deg=1, d=1, lam=1, f=0, g_b=0, g_l=0, g_r=0, g_t=0, bool_adaptive = False, tol = 1e-5, max_it = 50):
     '''
     Input:
         mesh: ngsolve mesh of the unit square without requiring the top edge to be straight
@@ -90,7 +90,7 @@ def SolvePoisson(mesh, deg=1, d=1, lam=1, f=0, g_b=0, g_l=0, g_r=0, g_t=0, bool_
     
     # finite element space and gridfunction to represent
     # the heatflux:
-    space_flux = HDiv(mesh, order=2, autoupdate=True)
+    space_flux = HDiv(mesh, order=deg-1, autoupdate=True)
     gf_flux = GridFunction(space_flux, "flux", autoupdate=True)
     
     def CalcError():
@@ -123,10 +123,12 @@ def SolvePoisson(mesh, deg=1, d=1, lam=1, f=0, g_b=0, g_l=0, g_r=0, g_t=0, bool_
     with TaskManager():
         SolveBVP()
         runtimes.append(timeit.default_timer() - start)
-        while CalcError() > tol:
+        it = 0
+        while CalcError() > tol and it < max_it:
             mesh.Refine()
             SolveBVP()
             runtimes.append(timeit.default_timer() - start)
+            it += 1
         
     if lam > 0:
         # the flux through the top of uh equals to <(d/lam)*u>_("top")
@@ -204,7 +206,7 @@ if __name__ == "__main__":
     poly_deg = 2
     
     # set up the desired tolerance for the parameter eta in mesh refinment
-    tol = 1e-6
+    tol = 1e-4
     
     # mesh generation
     (mesh, ell_e, ell_p) = MakeGeometry(fractal_level)
