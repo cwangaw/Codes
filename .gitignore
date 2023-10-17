@@ -1,1 +1,4 @@
 __pycache__/*
+results/comparison.txt
+results/err_ndofs.png
+results/err_runtimes.png
