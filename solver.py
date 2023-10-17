@@ -4,7 +4,7 @@ import timeit
 import contextlib, io, sys
 
 from ngsolve import *
-from numpy import sin,cos,pi
+from numpy import sin,cos,pi,zeros
 #from ngsolve.webgui import Draw
 from netgen.geom2d import SplineGeometry
 
@@ -100,20 +100,36 @@ def SolvePoisson(mesh, deg=1, d=1, lam=1, f=0, g_b=0, g_l=0, g_r=0, g_t=0, bool_
 
         # gradient-recovery error estimator
         err = 1/d*(flux-gf_flux)*(flux-gf_flux)
-        elerr = Integrate (err, mesh, VOL, element_wise=True)
+        eta2 = Integrate (err, mesh, VOL, element_wise=True)
+        eta2 = eta2.NumPy()
         # Integrate ( *dx(element_boundary=True), mesh, VOL, element_wise=True)
 
-        maxerr = max(elerr)
-        sumerr = sqrt(sum(elerr))
-        errs.append((fes.ndof, sumerr))
-        
+        max_eta2 = max(eta2)
+        sum_eta2 = sqrt(sum(eta2))
+        errs.append((fes.ndof, sum_eta2))
+
         # if we want to refine the mesh adaptively,
         # we label the elements in need of refinements here
         if bool_adaptive:
+            # *** MARK step
+            # Mark cells for refinement for which eta > frac eta_max for frac = .95, .90, ...;
+            # choose frac so that marked elements account for a given part of total error
+            frac = .95
+            delfrac = .05
+            part = .5
+            marked = zeros(mesh.ne, dtype=bool) # marked starts as False for all elements
+            sum_marked_eta2 = 0. # sum over marked elements of squared error indicators
+
+            while sum_marked_eta2 < part*sum_eta2:
+                new_marked = (~marked) & (eta2 > frac*max_eta2)
+                sum_marked_eta2 += sum(eta2[new_marked])
+                marked += new_marked
+                frac -= delfrac
+
             for el in mesh.Elements():
-                mesh.SetRefinementFlag(el, elerr[el.nr] > 0.25*maxerr)
+                mesh.SetRefinementFlag(el, marked[el.nr])
         
-        return sumerr
+        return sum_eta2
 
     # start the timer
     start = timeit.default_timer()
