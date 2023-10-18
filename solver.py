@@ -105,8 +105,8 @@ def SolvePoisson(mesh, deg=1, d=1, lam=1, f=0, g_b=0, g_l=0, g_r=0, g_t=0, bool_
         # Integrate ( *dx(element_boundary=True), mesh, VOL, element_wise=True)
 
         max_eta2 = max(eta2)
-        sum_eta2 = sqrt(sum(eta2))
-        errs.append((fes.ndof, sum_eta2))
+        sum_eta2 = sum(eta2)
+        errs.append((fes.ndof, sqrt(sum_eta2)))
 
         # if we want to refine the mesh adaptively,
         # we label the elements in need of refinements here
@@ -127,9 +127,9 @@ def SolvePoisson(mesh, deg=1, d=1, lam=1, f=0, g_b=0, g_l=0, g_r=0, g_t=0, bool_
                 frac -= delfrac
 
             for el in mesh.Elements():
-                mesh.SetRefinementFlag(el, marked[el.nr])
+                 mesh.SetRefinementFlag(el, marked[el.nr])
         
-        return sum_eta2
+        return sqrt(sum_eta2)
 
     # start the timer
     start = timeit.default_timer()
@@ -222,7 +222,7 @@ if __name__ == "__main__":
     poly_deg = 2
     
     # set up the desired tolerance for the parameter eta in mesh refinment
-    tol = 1e-4
+    tol = 1e-5
     
     # mesh generation
     (mesh, ell_e, ell_p) = MakeGeometry(fractal_level)
@@ -248,7 +248,7 @@ if __name__ == "__main__":
     
     errs_lst = []
     runtimes_lst = []
-    for is_adaptive in [True, False]:
+    for is_adaptive in [False, True]:
         # initialize a new mesh, on which we solve the pde
         (mesh, ell_e, ell_p) = MakeGeometry(fractal_level)
         (uh, flux, runtimes, errs) = SolvePoisson(mesh, poly_deg, d, lam, f, g_b, g_l, g_r, g_t, is_adaptive, tol)
@@ -269,10 +269,10 @@ if __name__ == "__main__":
     plt.figure()
     plt.xlabel("ndof")
     plt.ylabel("H1 error-estimate")
-    ndof_a, err_a = zip(*(errs_lst[0]))
-    ndof_n, err_n = zip(*(errs_lst[1]))
-    plt.loglog(ndof_a,err_a, "*-", label="adaptive")
+    ndof_n, err_n = zip(*(errs_lst[0]))
+    ndof_a, err_a = zip(*(errs_lst[1]))
     plt.loglog(ndof_n,err_n, '*-', label="not adaptive")
+    plt.loglog(ndof_a,err_a, "*-", label="adaptive")
     leg = plt.legend(loc='upper right')
     plt.savefig("results/err_ndofs.png")
     
@@ -280,8 +280,8 @@ if __name__ == "__main__":
     plt.figure()
     plt.xlabel("runtime")
     plt.ylabel("H1 error-estimate")
-    plt.loglog(runtimes_lst[0],err_a, "*-", label="adaptive")
-    plt.loglog(runtimes_lst[1],err_n, '*-', label="not adaptive")
+    plt.loglog(runtimes_lst[0],err_n, '*-', label="not adaptive")
+    plt.loglog(runtimes_lst[1],err_a, "*-", label="adaptive")
     leg = plt.legend(loc='upper right')
     plt.savefig("results/err_runtimes.png")    
 
