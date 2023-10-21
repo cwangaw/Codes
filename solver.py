@@ -8,17 +8,17 @@ from numpy import sin,cos,pi,zeros
 #from ngsolve.webgui import Draw
 from netgen.geom2d import SplineGeometry
 
-def SolvePoisson(mesh, deg=1, d=1, lam=1, f=0, g_b=0, g_l=0, g_r=0, g_t=0, bool_adaptive = False, tol = 1e-5, max_it = 50):
+def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 1e-5, max_it = 50):
     '''
     Input:
         mesh: ngsolve mesh of the unit square without requiring the top edge to be straight
         d:    a positive constant, or eventually function (conductivity)
         lam:  non-negative constant from Robin boundary condition
         f:    forcing term
-        g_b:  Dirichlet data imposed on bottom of domain
-        g_l:  Neumann data imposed on left edge of domain
-        g_r:  Neumann data imposed on right edge of domain
-        g_t:  Robin data
+        bc:   a 3-item nested dictionary { "d": {}, "n":{}, "r":{} }
+                corresponding to dirichlet, neumann, and robin boundary conditions
+                each pair in the nested dictionary has key: the label of the edge, 
+                                                       value: the coefficient function (data)
         deg:  degree of Lagrange finite element space
     Returns:
         uh:   finite element solution
@@ -42,29 +42,45 @@ def SolvePoisson(mesh, deg=1, d=1, lam=1, f=0, g_b=0, g_l=0, g_r=0, g_t=0, bool_
         l(v) = (f, v) + <g_l, v>_("left") + <g_r, v>_("right")
     Note: if lam = 0, the boundary condition on the top is dirichlet, not Robin    
     '''
+    
+    if bool(bc["r"]):
+        robin_str = '|'.join(map(str,list(bc["r"].keys())))
+    if bool(bc["d"]):
+        dirichlet_str = '|'.join(map(str,list(bc["d"].keys())))
+        
     # initialize the finite element
     if lam > 0:
-        fes = H1(mesh, order=deg, dirichlet="bottom", autoupdate=True)
-    else:
-        fes = H1(mesh, order=deg, dirichlet="bottom|top", autoupdate=True)
+        if bool(bc["d"]):
+            fes = H1(mesh, order=deg, dirichlet=dirichlet_str, autoupdate=True)
+    elif bool(bc["d"]) or bool(bc["r"]):
+        if bool(bc["d"]) and bool(bc["r"]):
+            new_dirichlet_str = dirichlet_str + "|" + robin_str
+        elif bool(bc["d"]):
+            new_dirichlet_str = dirichlet_str
+        elif bool(bc["r"]):
+            new_dirichlet_str = robin_str
+        fes = H1(mesh, order=deg, dirichlet=new_dirichlet_str, autoupdate=True)
     
     u = fes.TrialFunction()  # symbolic object
     v = fes.TestFunction()   # symbolic object
 
     # intialize and define the bilinear form a(u,v)
     a = BilinearForm(fes)
-    if lam > 0:
-        a += d*grad(u)*grad(v)*dx + (d/lam)*u*v*ds("top")
-    else:
-        a += d*grad(u)*grad(v)*dx
+    a += d*grad(u)*grad(v)*dx
+    if lam > 0 and bool(bc["r"]):
+        a += (d/lam)*u*v*ds(robin_str)
     a.Assemble()
 
     # intialize and define the linear form l(v)
     l = LinearForm(fes)
+    l += f*v*dx
+    # add the neumann boundary terms
+    for label in bc["n"].keys():
+        l += bc["n"][label]*v*ds(label)  
+    # add the robin boundary terms if lam > 0
     if lam > 0:
-        l += f*v*dx + g_l*v*ds("left") + g_r*v*ds("right") + (d/lam)*g_t*v*ds("top")
-    else:
-        l += f*v*dx + g_l*v*ds("left") + g_r*v*ds("right")
+        for label in bc["r"].keys():
+            l += (d/lam)*bc["r"][label]*v*ds(label)
     l.Assemble()
 
     # solution
@@ -72,19 +88,19 @@ def SolvePoisson(mesh, deg=1, d=1, lam=1, f=0, g_b=0, g_l=0, g_r=0, g_t=0, bool_
     
     # set up boundary conditions
     if lam > 0:
-        uh.Set(g_b, BND)
-    else:
-        uh.Set(mesh.BoundaryCF({ "top" : g_t, "bottom" : g_b}), definedon=mesh.Boundaries("bottom|top"))
+        if bool(bc["d"]):
+            uh.Set(mesh.BoundaryCF(bc["d"]), BND)
+    elif bool(bc["d"]) or bool(bc["r"]):
+        new_dirichlet_dict = {**bc["d"], **bc["r"]}
+        uh.Set(mesh.BoundaryCF(new_dirichlet_dict), BND)
 
     # solve for the free dofs
     def SolveBVP():
         a.Assemble()
         l.Assemble()
-        # Redraw (blocking=True)
         r = l.vec - a.mat * uh.vec
         uh.vec.data += a.mat.Inverse(freedofs=fes.FreeDofs()) * r
-        
-    
+           
     errs = []
     runtimes = []
     
@@ -146,17 +162,20 @@ def SolvePoisson(mesh, deg=1, d=1, lam=1, f=0, g_b=0, g_l=0, g_r=0, g_t=0, bool_
             runtimes.append(timeit.default_timer() - start)
             it += 1
         
-    if lam > 0:
-        # the flux through the top of uh equals to <(d/lam)*u>_("top")
-        flux_top = Integrate((d/lam)*uh, mesh, BND, definedon=mesh.Boundaries("top"))
+    if bool(bc["r"]):
+        if lam > 0:
+            # the flux through the robin boundaries equals to <(d/lam)*u>_("r")
+            flux_top = Integrate((d/lam)*uh, mesh, BND, definedon=mesh.Boundaries(robin_str))
+        else:
+            # the flux through the old robin boundaries is <-d*du/dn>_(old_robin)
+            n = specialcf.normal(mesh.dim)
+            gradu0 = GridFunction(fes)
+            gradu1 = GridFunction(fes)
+            gradu0.Set(grad(uh)[0])
+            gradu1.Set(grad(uh)[1])
+            flux_top = Integrate(-d*(gradu0*n[0]+gradu1*n[1]), mesh, BND, definedon=mesh.Boundaries(robin_str))
     else:
-        # the flux through the top of uh is <-d*du/dn>_("top")
-        n = specialcf.normal(mesh.dim)
-        gradu0 = GridFunction(fes)
-        gradu1 = GridFunction(fes)
-        gradu0.Set(grad(uh)[0])
-        gradu1.Set(grad(uh)[1])
-        flux_top = Integrate(-d*(gradu0*n[0]+gradu1*n[1]), mesh, BND, definedon=mesh.Boundaries("top"))
+        flux_top = 0
         
     return uh, flux_top, runtimes, errs
 
@@ -197,13 +216,12 @@ def MakeGeometry(fractal_level, h_max = 0.2):
     for i in range(len(pnts)):
         geo.AppendPoint (pnts[i][0], pnts[i][1])
 
-    geo.Append (["line", sgmnts[0][0], sgmnts[0][1]], bc = "bottom")
-    geo.Append (["line", sgmnts[1][0], sgmnts[1][1]], bc = "right")
-    geo.Append (["line", sgmnts[2][0], sgmnts[2][1]], bc = "left")
+    geo.Append (["line", sgmnts[0][0], sgmnts[0][1]], bc="bottom")
+    geo.Append (["line", sgmnts[1][0], sgmnts[1][1]], bc="right")
+    geo.Append (["line", sgmnts[2][0], sgmnts[2][1]], bc="left")
     
     for i in range(3,len(sgmnts)):
-        geo.Append (["line", sgmnts[i][0], sgmnts[i][1]], bc = "top")
-
+        geo.Append (["line", sgmnts[i][0], sgmnts[i][1]], bc="top")
     # calculate ell_e = length of the shortest edge
     #           ell_p = length (parimeter) of the fractal structure on the top
     ell_e = 1 / (3.0**fractal_level)
@@ -226,7 +244,6 @@ if __name__ == "__main__":
     
     # mesh generation
     (mesh, ell_e, ell_p) = MakeGeometry(fractal_level)
-    
     # set up parameters for the pde
     d = 2.56
     lam = ell_p
@@ -234,14 +251,14 @@ if __name__ == "__main__":
     # set up manufactured solution
     # and the corresponding source term and boundary data
     manu_sol = x**3 * y
+    f = -((d*manu_sol.Diff(x)).Diff(x) + (d*manu_sol.Diff(y)).Diff(y))
     n = specialcf.normal(mesh.dim)
     du_nu = manu_sol.Diff(x)*n[0]+manu_sol.Diff(y)*n[1]
-    f = -((d*manu_sol.Diff(x)).Diff(x) + (d*manu_sol.Diff(y)).Diff(y))
     g_b = manu_sol
     g_l = d*du_nu
     g_r = d*du_nu
     g_t = lam*du_nu + manu_sol
-    
+    bc = {"d": {"bottom": g_b}, "n": {"right": g_r, "left": g_l}, "r": {"top": g_t}}
     # Compare the running time and number of dofs for 
     # traditionally and adaptively refined mesh
     result = open("results/comparison.txt", "a")
@@ -250,8 +267,8 @@ if __name__ == "__main__":
     runtimes_lst = []
     for is_adaptive in [False, True]:
         # initialize a new mesh, on which we solve the pde
-        (mesh, ell_e, ell_p) = MakeGeometry(fractal_level)
-        (uh, flux, runtimes, errs) = SolvePoisson(mesh, poly_deg, d, lam, f, g_b, g_l, g_r, g_t, is_adaptive, tol)
+        (mesh, _, _) = MakeGeometry(fractal_level)
+        (uh, flux, runtimes, errs) = SolvePoisson(mesh, bc, poly_deg, d, lam, f, is_adaptive, tol)
         errs_lst.append(errs)
         runtimes_lst.append(runtimes)
         

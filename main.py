@@ -9,7 +9,7 @@ fractal_level = int(input("Enter the number of refinement steps for the pre-frac
 poly_deg = 3
 
 # set up if we want to refine the mesh adaptively
-is_adaptive = True
+is_adaptive = False
 
 # set up the error tolerance for mesh refinement
 tol = 1e-5
@@ -25,10 +25,13 @@ lam_lst = []
 flux_top_lst = []
 asymp_coeff_lst = []
 
+# set up boundary conditions
+bc = {"d": {"bottom": 1}, "n": {"right": 0, "left":0}, "r": {"top": 0}}
+
 # solve the pde with lam = 0, 0.5*ell_p, ell_p, 1.5*ell_p, ..., 50*ell_p 
 for i in range(101):
     lam = i*0.5*ell_p
-    (gfu, flux_top) = SolvePoisson(mesh, poly_deg, d, lam, 0, 1, 0, 0, 0, is_adaptive, tol)
+    (gfu, flux_top, _, _) = SolvePoisson(mesh, bc, poly_deg, d, lam, 0, is_adaptive, tol, 0)
 
     lam_lst.append(lam)
     flux_top_lst.append(flux_top)
@@ -38,7 +41,7 @@ for i in range(101):
 # plot the log scaled total flux through the top edge vs d*ell_p/lam
 plt.xlabel("$\Lambda$")
 plt.loglog(lam_lst, flux_top_lst, "-", label="Total flux through the top edge")
-plt.loglog(lam_lst[1:], asymp_coeff_lst, color = 'r', linestyle = '-', label="$d*ell_p/\Lambda$")
+plt.loglog(lam_lst[1:], asymp_coeff_lst, color = 'r', linestyle = '-', label="$d*L_p/\Lambda$")
 leg = plt.legend(loc='upper center')
 plt.title('Log scaled, level of refinement = ' + str(fractal_level), style='italic')
 plt.ion()
