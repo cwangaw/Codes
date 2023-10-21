@@ -42,22 +42,24 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
         l(v) = (f, v) + <g_l, v>_("left") + <g_r, v>_("right")
     Note: if lam = 0, the boundary condition on the top is dirichlet, not Robin    
     '''
+    has_robin = bool(bc["r"])
+    has_dirichlet = bool(bc["d"])
     
-    if bool(bc["r"]):
+    if has_robin:
         robin_str = '|'.join(map(str,list(bc["r"].keys())))
-    if bool(bc["d"]):
+    if has_dirichlet:
         dirichlet_str = '|'.join(map(str,list(bc["d"].keys())))
         
     # initialize the finite element
     if lam > 0:
-        if bool(bc["d"]):
+        if has_dirichlet:
             fes = H1(mesh, order=deg, dirichlet=dirichlet_str, autoupdate=True)
-    elif bool(bc["d"]) or bool(bc["r"]):
-        if bool(bc["d"]) and bool(bc["r"]):
+    elif has_dirichlet or has_robin:
+        if has_dirichlet and has_robin:
             new_dirichlet_str = dirichlet_str + "|" + robin_str
-        elif bool(bc["d"]):
+        elif has_dirichlet:
             new_dirichlet_str = dirichlet_str
-        elif bool(bc["r"]):
+        elif has_robin:
             new_dirichlet_str = robin_str
         fes = H1(mesh, order=deg, dirichlet=new_dirichlet_str, autoupdate=True)
     
@@ -67,7 +69,7 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
     # intialize and define the bilinear form a(u,v)
     a = BilinearForm(fes)
     a += d*grad(u)*grad(v)*dx
-    if lam > 0 and bool(bc["r"]):
+    if lam > 0 and has_robin:
         a += (d/lam)*u*v*ds(robin_str)
     a.Assemble()
 
@@ -88,9 +90,9 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
     
     # set up boundary conditions
     if lam > 0:
-        if bool(bc["d"]):
+        if has_dirichlet:
             uh.Set(mesh.BoundaryCF(bc["d"]), BND)
-    elif bool(bc["d"]) or bool(bc["r"]):
+    elif has_dirichlet or has_robin:
         new_dirichlet_dict = {**bc["d"], **bc["r"]}
         uh.Set(mesh.BoundaryCF(new_dirichlet_dict), BND)
 
@@ -162,7 +164,7 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
             runtimes.append(timeit.default_timer() - start)
             it += 1
         
-    if bool(bc["r"]):
+    if has_robin:
         if lam > 0:
             # the flux through the robin boundaries equals to <(d/lam)*u>_("r")
             flux_top = Integrate((d/lam)*uh, mesh, BND, definedon=mesh.Boundaries(robin_str))
