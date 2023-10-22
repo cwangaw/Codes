@@ -356,6 +356,15 @@ if __name__ == "__main__":
     # plot the uh
     Draw(uh)
     
+
+    #set up plot title corresponding to the problem solved
+    if len(sys.argv) > 1 and sys.argv[1] == "singular":
+        plot_title = "L-shaped domain"
+    elif len(sys.argv) > 1 and sys.argv[1] == "lam":
+        plot_title = "robin on fractal top boundary, lam = " + sys.argv[2]
+    else:
+        plot_title = "manufactured solution"
+        
     # plot the H1 error vs the number of DoFs
     plt.figure()
     plt.xlabel("ndof")
@@ -365,6 +374,7 @@ if __name__ == "__main__":
     plt.loglog(ndof_n,err_n, '*-', label="not adaptive")
     plt.loglog(ndof_a,err_a, "*-", label="adaptive")
     leg = plt.legend(loc='upper right')
+    plt.title(plot_title, style='italic')
     plt.savefig("results/err_ndofs.png")
     
     # plot the H1 error vs runtime
@@ -374,6 +384,7 @@ if __name__ == "__main__":
     plt.loglog(runtimes_lst[0],err_n, '*-', label="not adaptive")
     plt.loglog(runtimes_lst[1],err_a, "*-", label="adaptive")
     leg = plt.legend(loc='upper right')
+    plt.title(plot_title, style='italic')
     plt.savefig("results/err_runtimes.png")    
 
     
