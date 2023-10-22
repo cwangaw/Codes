@@ -4,7 +4,7 @@ import timeit
 import contextlib, io, sys
 
 from ngsolve import *
-from numpy import sin,cos,pi,zeros
+from numpy import sin,cos,pi,zeros,sqrt,arctan2
 #from ngsolve.webgui import Draw
 from netgen.geom2d import SplineGeometry
 
@@ -51,6 +51,7 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
         dirichlet_str = '|'.join(map(str,list(bc["d"].keys())))
         
     # initialize the finite element
+    # clarify the dirichlet boundary conditions according to if lam is positive or zero
     if lam > 0:
         if has_dirichlet:
             fes = H1(mesh, order=deg, dirichlet=dirichlet_str, autoupdate=True)
@@ -233,56 +234,102 @@ def MakeGeometry(fractal_level, h_max = 0.2):
     mesh = Mesh(geo.GenerateMesh(maxh=h_max))
     
     return mesh, ell_e, ell_p
+
+def MakeLGeometry(h_max = 0.2):
+    geo = SplineGeometry()
+    
+    # the four vertices of the square domian
+    pnts = [ (0,0), (1,0), (1,1), (-1,1), (-1,-1), (0,-1) ]
+    
+    for i in range(len(pnts)):
+        geo.AppendPoint (pnts[i][0], pnts[i][1])
+        if i > 0:
+            geo.Append (["line", i-1, i], bc="dirichlet")
+    
+    geo.Append (["line", len(pnts)-1, 0], bc="dirichlet")
+    
+    # mesh generation
+    mesh = Mesh(geo.GenerateMesh(maxh=h_max))
+    
+    return mesh
     
 if __name__ == "__main__":
-    # set up the parameter for refining the fractal structure
-    fractal_level = 3
-    
     # set up the order of Lagrangian finite element
     poly_deg = 2
     
     # set up the desired tolerance for the parameter eta in mesh refinment
     tol = 1e-5
     
-    # mesh generation
-    (mesh, ell_e, ell_p) = MakeGeometry(fractal_level)
-    # set up parameters for the pde
-    d = 2.56
-    lam = ell_p
+    if sys.argv[1] == "singular":
+        d = 1
+        lam = 1
+        mesh = MakeLGeometry()
 
-    # set up manufactured solution
-    # and the corresponding source term and boundary data
-    manu_sol = x**3 * y
-    f = -((d*manu_sol.Diff(x)).Diff(x) + (d*manu_sol.Diff(y)).Diff(y))
-    n = specialcf.normal(mesh.dim)
-    du_nu = manu_sol.Diff(x)*n[0]+manu_sol.Diff(y)*n[1]
-    g_b = manu_sol
-    g_l = d*du_nu
-    g_r = d*du_nu
-    g_t = lam*du_nu + manu_sol
-    bc = {"d": {"bottom": g_b}, "n": {"right": g_r, "left": g_l}, "r": {"top": g_t}}
-    # Compare the running time and number of dofs for 
-    # traditionally and adaptively refined mesh
-    result = open("results/comparison.txt", "a")
-    
-    errs_lst = []
-    runtimes_lst = []
-    for is_adaptive in [False, True]:
-        # initialize a new mesh, on which we solve the pde
-        (mesh, _, _) = MakeGeometry(fractal_level)
-        (uh, flux, runtimes, errs) = SolvePoisson(mesh, bc, poly_deg, d, lam, f, is_adaptive, tol)
-        errs_lst.append(errs)
-        runtimes_lst.append(runtimes)
+        # rho = sqrt(x**2 + y**2), phi = arctan2(y, x)
+        # u = rho^(2/3) * sin(2*phi/3)
+        # manu_sol = (x**2 + y**2)**(1/3) * sin(2*arctan2(y,x)/3) with O((y/x)**3)
+        f = 1
+        bc = {"d": {"dirichlet": 0}, "n": {}, "r": {}}
         
-        # calculate and print the L2 error
-        e = Integrate((uh-manu_sol)**2, mesh, VOL)
-        e = sqrt(e)
+        errs_lst = []
+        runtimes_lst = []
         
-        # append the results into the file
-        result.write("Adaptivity: " + str(is_adaptive) + ", Solving time: " + str(runtimes[-1]) + ", nDoFs:" + str(errs[-1][0]) + ", Error:" + str(e) + '\n')
+        is_adaptive = [False, True]
+        max_it = [5, 10]
+        for i in range(2):
+            # initialize a new mesh, on which we solve the pde
+            mesh = MakeLGeometry()
+            
+            (uh, flux, runtimes, errs) = SolvePoisson(mesh, bc, poly_deg, d, lam, f, is_adaptive[i], tol, max_it[i])
+            
+            errs_lst.append(errs)
+            runtimes_lst.append(runtimes)
+            
+            Draw(uh)
+
+    else:
+        # set up the parameter for refining the fractal structure
+        fractal_level = 3
         
-    result.write('\n')
-    result.close()
+        # mesh generation
+        (mesh, ell_e, ell_p) = MakeGeometry(fractal_level)
+        # set up parameters for the pde
+        d = 2.56
+        lam = ell_p
+
+        # set up manufactured solution
+        # and the corresponding source term and boundary data
+        manu_sol = x**3 * y
+        f = -((d*manu_sol.Diff(x)).Diff(x) + (d*manu_sol.Diff(y)).Diff(y))
+        n = specialcf.normal(mesh.dim)
+        du_nu = manu_sol.Diff(x)*n[0]+manu_sol.Diff(y)*n[1]
+        g_b = manu_sol
+        g_l = d*du_nu
+        g_r = d*du_nu
+        g_t = lam*du_nu + manu_sol
+        bc = {"d": {"bottom": g_b}, "n": {"right": g_r, "left": g_l}, "r": {"top": g_t}}
+        # Compare the running time and number of dofs for 
+        # traditionally and adaptively refined mesh
+        result = open("results/comparison.txt", "a")
+        
+        errs_lst = []
+        runtimes_lst = []
+        for is_adaptive in [False, True]:
+            # initialize a new mesh, on which we solve the pde
+            (mesh, _, _) = MakeGeometry(fractal_level)
+            (uh, flux, runtimes, errs) = SolvePoisson(mesh, bc, poly_deg, d, lam, f, is_adaptive, tol)
+            errs_lst.append(errs)
+            runtimes_lst.append(runtimes)
+            
+            # calculate and print the L2 error
+            e = Integrate((uh-manu_sol)**2, mesh, VOL)
+            e = sqrt(e)
+            
+            # append the results into the file
+            result.write("Adaptivity: " + str(is_adaptive) + ", Solving time: " + str(runtimes[-1]) + ", nDoFs:" + str(errs[-1][0]) + ", Error:" + str(e) + '\n')
+            
+        result.write('\n')
+        result.close()
     
     # plot the H1 error vs the number of DoFs
     plt.figure()
