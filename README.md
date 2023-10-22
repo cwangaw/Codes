@@ -1,6 +1,6 @@
-## Usage
+# Usage
 
-# Windows
+## Windows
 
 For a windows user, you need to use Python3 with version 3.7 to make NGSolve work.
 
@@ -19,7 +19,7 @@ To solve for -div(grad u) = 1 with homogeneous Dirichlet boundary condition on a
 py -3.7 -i solver.py singular
 ```
 
-# Linux
+## Linux
 
 To solve for the fractal boundary problem described in our notes, use
 ```
