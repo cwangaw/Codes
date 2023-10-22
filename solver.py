@@ -42,6 +42,7 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
         l(v) = (f, v) + <g_l, v>_("left") + <g_r, v>_("right")
     Note: if lam = 0, the boundary condition on the top is dirichlet, not Robin    
     '''
+    
     has_robin = bool(bc["r"])
     has_dirichlet = bool(bc["d"])
     
@@ -84,13 +85,12 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
         for label in bc["r"].keys():
             l += (d/lam)*bc["r"][label]*v*ds(label)
 
-
-
     # solution
     uh = GridFunction(fes, autoupdate=True)  
     
     # solve for the free dofs
     def SolveBVP():
+        # assemble the bilinear and the linear form
         a.Assemble()
         l.Assemble()
         
@@ -101,6 +101,8 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
         elif has_dirichlet or has_robin:
             new_dirichlet_dict = {**bc["d"], **bc["r"]}
             uh.Set(mesh.BoundaryCF(new_dirichlet_dict), BND)
+        
+        # solve the linear system    
         r = l.vec - a.mat * uh.vec
         uh.vec.data += a.mat.Inverse(freedofs=fes.FreeDofs()) * r
            
@@ -165,7 +167,6 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
             runtimes.append(timeit.default_timer() - start)
             it += 1
         
-    
     if has_robin:
         if lam > 0:
             # the flux through the robin boundaries equals to <(d/lam)*u>_("r")
@@ -262,13 +263,11 @@ if __name__ == "__main__":
     tol = 1e-5
     
     if len(sys.argv) > 1 and sys.argv[1] == "singular":
+        # set up the parameters
         d = 1
         lam = 1
-        mesh = MakeLGeometry()
 
-        # rho = sqrt(x**2 + y**2), phi = arctan2(y, x)
-        # u = rho^(2/3) * sin(2*phi/3)
-        # manu_sol = (x**2 + y**2)**(1/3) * sin(2*arctan2(y,x)/3) with O((y/x)**3)
+        # set up the source function and the boundary conditions
         f = 1
         bc = {"d": {"dirichlet": 0}, "n": {}, "r": {}}
         
@@ -280,6 +279,8 @@ if __name__ == "__main__":
         for i in range(2):
             # initialize a new mesh, on which we solve the pde
             mesh = MakeLGeometry()
+            
+            # solve the pde
             (uh, flux, runtimes, errs) = SolvePoisson(mesh, bc, poly_deg, d, lam, f, is_adaptive[i], tol, max_it[i])
             
             errs_lst.append(errs)
