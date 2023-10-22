@@ -17,6 +17,9 @@ tol = 1e-5
 # set up the parameter for pde
 d = 1
 
+# set up max number of iteration
+max_it = 2
+
 # mesh generation
 (mesh, ell_e, ell_p) = MakeGeometry(fractal_level)
 
@@ -31,7 +34,9 @@ bc = {"d": {"bottom": 1}, "n": {"right": 0, "left":0}, "r": {"top": 0}}
 # solve the pde with lam = 0, 0.5*ell_p, ell_p, 1.5*ell_p, ..., 50*ell_p 
 for i in range(101):
     lam = i*0.5*ell_p
-    (gfu, flux_top, _, _) = SolvePoisson(mesh, bc, poly_deg, d, lam, 0, is_adaptive, tol, 0)
+    if max_it > 0:
+        (mesh, _, _) = MakeGeometry(fractal_level)
+    (uh, flux_top, _, _) = SolvePoisson(mesh, bc, poly_deg, d, lam, 0, is_adaptive, tol, max_it)
 
     lam_lst.append(lam)
     flux_top_lst.append(flux_top)

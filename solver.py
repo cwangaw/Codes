@@ -72,7 +72,6 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
     a += d*grad(u)*grad(v)*dx
     if lam > 0 and has_robin:
         a += (d/lam)*u*v*ds(robin_str)
-    a.Assemble()
 
     # intialize and define the linear form l(v)
     l = LinearForm(fes)
@@ -84,23 +83,24 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
     if lam > 0:
         for label in bc["r"].keys():
             l += (d/lam)*bc["r"][label]*v*ds(label)
-    l.Assemble()
+
+
 
     # solution
     uh = GridFunction(fes, autoupdate=True)  
     
-    # set up boundary conditions
-    if lam > 0:
-        if has_dirichlet:
-            uh.Set(mesh.BoundaryCF(bc["d"]), BND)
-    elif has_dirichlet or has_robin:
-        new_dirichlet_dict = {**bc["d"], **bc["r"]}
-        uh.Set(mesh.BoundaryCF(new_dirichlet_dict), BND)
-
     # solve for the free dofs
     def SolveBVP():
         a.Assemble()
         l.Assemble()
+        
+        # set up boundary conditions
+        if lam > 0:
+            if has_dirichlet:
+                uh.Set(mesh.BoundaryCF(bc["d"]), BND)
+        elif has_dirichlet or has_robin:
+            new_dirichlet_dict = {**bc["d"], **bc["r"]}
+            uh.Set(mesh.BoundaryCF(new_dirichlet_dict), BND)
         r = l.vec - a.mat * uh.vec
         uh.vec.data += a.mat.Inverse(freedofs=fes.FreeDofs()) * r
            
@@ -165,6 +165,7 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
             runtimes.append(timeit.default_timer() - start)
             it += 1
         
+    
     if has_robin:
         if lam > 0:
             # the flux through the robin boundaries equals to <(d/lam)*u>_("r")
@@ -260,7 +261,7 @@ if __name__ == "__main__":
     # set up the desired tolerance for the parameter eta in mesh refinment
     tol = 1e-5
     
-    if sys.argv[1] == "singular":
+    if len(sys.argv) > 1 and sys.argv[1] == "singular":
         d = 1
         lam = 1
         mesh = MakeLGeometry()
@@ -279,14 +280,34 @@ if __name__ == "__main__":
         for i in range(2):
             # initialize a new mesh, on which we solve the pde
             mesh = MakeLGeometry()
-            
             (uh, flux, runtimes, errs) = SolvePoisson(mesh, bc, poly_deg, d, lam, f, is_adaptive[i], tol, max_it[i])
             
             errs_lst.append(errs)
             runtimes_lst.append(runtimes)
             
-            Draw(uh)
+    elif len(sys.argv) > 1 and sys.argv[1] == "lam":
+        d = 1
+        fractal_level = 3
+        f = 0
+        lam = float(sys.argv[2])
+        
+        (mesh, ell_e, ell_p) = MakeGeometry(fractal_level)
+        
+        # set up boundary conditions
+        bc = {"d": {"bottom": 1}, "n": {"right": 0, "left": 0}, "r": {"top": 0}}
+        
+        errs_lst = []
+        runtimes_lst = []
+        is_adaptive = [False, True]
+        max_it = [5, 10]
+        for i in range(2):
+            # initialize a new mesh, on which we solve the pde
+            (mesh, _, _) = MakeGeometry(fractal_level)
+            (uh, flux, runtimes, errs) = SolvePoisson(mesh, bc, poly_deg, d, lam, f, is_adaptive[i], tol, max_it[i])
 
+            errs_lst.append(errs)
+            runtimes_lst.append(runtimes)
+            
     else:
         # set up the parameter for refining the fractal structure
         fractal_level = 3
@@ -330,6 +351,9 @@ if __name__ == "__main__":
             
         result.write('\n')
         result.close()
+    
+    # plot the uh
+    Draw(uh)
     
     # plot the H1 error vs the number of DoFs
     plt.figure()
