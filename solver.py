@@ -1,48 +1,73 @@
 import netgen.gui
 import matplotlib.pyplot as plt
 import timeit
-import contextlib, io, sys
+import os, sys
+import csv
 
+from utilities import *
+from netgen.csg import *
 from ngsolve import *
-from numpy import sin,cos,pi,zeros,sqrt,arctan2
+from numpy import pi,zeros,sqrt
 #from ngsolve.webgui import Draw
 from netgen.geom2d import SplineGeometry
 
-def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 1e-5, max_it = 50):
+def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 1e-5, max_it = 50, mesh_it = 0, outdir = 'results'):
     '''
     Input:
-        mesh: ngsolve mesh of the unit square without requiring the top edge to be straight
-        d:    a positive constant, or eventually function (conductivity)
-        lam:  non-negative constant from Robin boundary condition
-        f:    forcing term
-        bc:   a 3-item nested dictionary { "d": {}, "n":{}, "r":{} }
-                corresponding to dirichlet, neumann, and robin boundary conditions
-                each pair in the nested dictionary has key: the label of the edge, 
-                                                       value: the coefficient function (data)
-        deg:  degree of Lagrange finite element space
+        mesh:           ngsolve mesh of the unit square without requiring the top edge to be straight
+        bc:             a 3-item nested dictionary { "d": {}, "n":{}, "r":{} }
+                        corresponding to dirichlet, neumann, and robin boundary conditions
+                        each pair in the nested dictionary has key: the label of the edge, 
+                                                               value: the coefficient function (data)
+        deg:            degree of Lagrange finite element space
+        d:              a positive constant, or eventually function (conductivity)
+        lam:            non-negative constant from Robin boundary condition
+        f:              forcing term
+        bool_adaptive:  whether the mesh will be refined adaptively or not
+        tol:            if sqrt(sum_eta2) <= tol, the result is accepted
+        max_it:         when the repetition of refine-solve procedure reaches max_it, 
+                            the result is accepted regardless of the error estimate
+        mesh_it:        current index for mesh storage
+        
     Returns:
-        uh:   finite element solution
-        flux_top: the flux through the top of uh
-    
+        uh:             finite element solution
+        flux_top:       the flux through the top of uh
+        runtimes:       a list with the runtime after each refinement (after the initial run only) and solving
+        errs:           a list of 2-tuple (ndof, sqrt(sum_eta2)) for each solve, the first entry is the number of dofs,
+                            the second entry is an approximation of H1-seminorm error
+        mesh_it:        updated index for mesh storage
+        
     The boundary value problem is - div (d grad u) = f on \Omega,
-    with boundary conditions:
-        on bottom edge: u = g_b
-        on left edge: d * du/dn = g_l 
-        on right edge: d * du/dn = g_r
-        on top: lam * du/dn + u = g_t
+        with boundary conditions given by the nested dictionary bc:
+            Dirichlet: u = g
+            Neumann: d * du/dn = g
+            Robin: lam * du/dn + u = g
     
     The weak form is  a(u, v) = l(v), where
     if lam > 0, we have
-        a(u, v) = (d * grad(u), grad(v)) + <d/lam * u, v>_("top")
+        a(u, v) = (d * grad(u), grad(v)) + <d/lam * u, v>_(robin)
         and
-        l(v) = (f, v) + <g_l, v>_("left") + <g_r, v>_("right") + <d/lam)*g_t, v>_("top")
+        l(v) = (f, v) + <g, v>_(neumann) + <d/lam)*g_t, v>_(robin)
     if lam = 0, we have
         a(u, v) = (d * grad(u), grad(v))
         and
-        l(v) = (f, v) + <g_l, v>_("left") + <g_r, v>_("right")
-    Note: if lam = 0, the boundary condition on the top is dirichlet, not Robin    
+        l(v) = (f, v) + <g, v>_(neumann)
+    Note: if lam = 0, the boundary condition on the top is Dirichlet, not Robin    
     '''
     
+    # output all the initial parameters
+    with open(outdir+'/misc.txt', 'a') as misc:
+        misc.write("\n")
+        misc.write("*** SolvePoisson() ***" + "\n")
+        misc.write("boundary conditions: " + str(bc) + "\n")
+        misc.write("fem space order: " + str(deg) + "\n")
+        misc.write("d = " + str(d) + "\n")
+        misc.write("lam = " + str(lam) + "\n")
+        misc.write("f = " + str(f) + "\n")
+        misc.write("adaptivity: " + str(bool_adaptive) + "\n")
+        misc.write("tolerance = " + str(tol) + "\n")
+        misc.write("max refinement iteration = " + str(max_it) + "\n")
+        
     has_robin = bool(bc["r"])
     has_dirichlet = bool(bc["d"])
     
@@ -87,6 +112,21 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
 
     # solution
     uh = GridFunction(fes, autoupdate=True)  
+    
+    # save current mesh
+    outmeshdir = outdir+"/mesh"
+    if not os.path.exists(outmeshdir):
+        os.makedirs(outmeshdir)
+
+    def SaveMesh(mesh_it):
+        meshname = "mesh" + str(mesh_it) + ".vol"
+        mesh.ngmesh.Save(outmeshdir + "/" + meshname)
+        with open(outdir+'/misc.txt', 'a') as misc:
+            misc.write("saving mesh: " + meshname + "\n")
+            misc.write("\tnumber of elements: " + str(mesh.ne) + "\n")
+            misc.write("\tnumber of dofs:" + str(fes.ndof) + "\n")
+        mesh_it = mesh_it + 1
+        return mesh_it
     
     # solve for the free dofs
     def SolveBVP():
@@ -158,14 +198,21 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
     # refine the mesh and solve the equation until the H1 error is within the tolerance
     # we note down the time after each time we run SolveBVP()
     with TaskManager():
+        mesh_it = SaveMesh(mesh_it)
         SolveBVP()
         runtimes.append(timeit.default_timer() - start)
         it = 0
         while CalcError() > tol and it < max_it:
             mesh.Refine()
+            mesh_it = SaveMesh(mesh_it)
             SolveBVP()
             runtimes.append(timeit.default_timer() - start)
             it += 1
+            if it == max_it:
+                warningmsg = "Number of iterations reaches max_it " + str(max_it) + " before the H1 error estimator reaching tolerance " + str(tol) + "\n"
+                print(warningmsg)
+                with open(outdir+'/misc.txt', 'a') as misc:
+                    misc.write(warningmsg)
         
     if has_robin:
         if lam > 0:
@@ -181,8 +228,10 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
             flux_top = Integrate(-d*(gradu0*n[0]+gradu1*n[1]), mesh, BND, definedon=mesh.Boundaries(robin_str))
     else:
         flux_top = 0
-        
-    return uh, flux_top, runtimes, errs
+    
+    with open(outdir+'/misc.txt', 'a') as misc:
+        misc.write('flux through the robin boundaries: ' + str(flux_top) + '\n')
+    return uh, flux_top, runtimes, errs, mesh_it
 
 # update the pnts list and sgmnts list
 def FractalStructure(p_start, p_end, pnts, sgmnts, current_level):
@@ -256,13 +305,32 @@ def MakeLGeometry(h_max = 0.2):
     return mesh
     
 if __name__ == "__main__":
+    # generate directory to save the results from this run
+    resultsdir='results'
+    if not os.path.exists(resultsdir):
+        os.makedirs(resultsdir)
+    outdir = makedir(resultsdir)
+    outmeshdir = outdir+"/mesh"
+    mesh_it = 0
+    os.makedirs(outmeshdir)
+    
+    bool_savesolution = True
+    savename = outdir + "/femsol/uh"
+    if bool_savesolution== True:
+        if not os.path.exists(outdir + '/femsol'):
+            os.makedirs(outdir + '/femsol')
+    
     # set up the order of Lagrangian finite element
-    poly_deg = 2
+    poly_deg = 5
     
     # set up the desired tolerance for the parameter eta in mesh refinment
-    tol = 1e-5
+    tol = 1e-6
     
     if len(sys.argv) > 1 and sys.argv[1] == "singular":
+        # write down the test
+        with open(outdir+'/misc.txt', 'a') as misc:
+            misc.write("Testing singular solution on a L-shape domain" + "\n")
+            
         # set up the parameters
         d = 1
         lam = 1
@@ -281,12 +349,17 @@ if __name__ == "__main__":
             mesh = MakeLGeometry()
             
             # solve the pde
-            (uh, flux, runtimes, errs) = SolvePoisson(mesh, bc, poly_deg, d, lam, f, is_adaptive[i], tol, max_it[i])
-            
+            (uh, flux, runtimes, errs, mesh_it) = SolvePoisson(mesh, bc, poly_deg, d, lam, f, is_adaptive[i], tol, max_it[i], mesh_it, outdir)
+            if bool_savesolution == True:
+                savesolution(mesh, uh, savename+str(int(is_adaptive[i])))
             errs_lst.append(errs)
             runtimes_lst.append(runtimes)
             
     elif len(sys.argv) > 1 and sys.argv[1] == "lam":
+        # write down the test
+        with open(outdir+'/misc.txt', 'a') as misc:
+            misc.write("Testing the Robin bc on a fractal boundary problem with lam = " + str(sys.argv[2]) + "\n")
+            
         d = 1
         fractal_level = 3
         f = 0
@@ -304,12 +377,17 @@ if __name__ == "__main__":
         for i in range(2):
             # initialize a new mesh, on which we solve the pde
             (mesh, _, _) = MakeGeometry(fractal_level)
-            (uh, flux, runtimes, errs) = SolvePoisson(mesh, bc, poly_deg, d, lam, f, is_adaptive[i], tol, max_it[i])
-
+            (uh, flux, runtimes, errs, mesh_it) = SolvePoisson(mesh, bc, poly_deg, d, lam, f, is_adaptive[i], tol, max_it[i], mesh_it, outdir)
+            if bool_savesolution == True:
+                savesolution(mesh, uh, savename+str(int(is_adaptive[i])))
             errs_lst.append(errs)
             runtimes_lst.append(runtimes)
             
     else:
+        # write down the test
+        with open(outdir+'/misc.txt', 'a') as misc:
+            misc.write("Testing the Robin bc on a fractal boundary problem with a manufactured solution" + "\n")
+
         # set up the parameter for refining the fractal structure
         fractal_level = 3
         
@@ -321,7 +399,7 @@ if __name__ == "__main__":
 
         # set up manufactured solution
         # and the corresponding source term and boundary data
-        manu_sol = x**3 * y
+        manu_sol = sin(x*y)*(x+y)**4
         f = -((d*manu_sol.Diff(x)).Diff(x) + (d*manu_sol.Diff(y)).Diff(y))
         n = specialcf.normal(mesh.dim)
         du_nu = manu_sol.Diff(x)*n[0]+manu_sol.Diff(y)*n[1]
@@ -332,14 +410,18 @@ if __name__ == "__main__":
         bc = {"d": {"bottom": g_b}, "n": {"right": g_r, "left": g_l}, "r": {"top": g_t}}
         # Compare the running time and number of dofs for 
         # traditionally and adaptively refined mesh
-        result = open("results/comparison.txt", "a")
+        result = open(outdir+"/comparison.txt", "a+")
         
         errs_lst = []
         runtimes_lst = []
-        for is_adaptive in [False, True]:
+        is_adaptive = [False, True]
+        max_it = [5, 10]
+        for i in range(2):
             # initialize a new mesh, on which we solve the pde
             (mesh, _, _) = MakeGeometry(fractal_level)
-            (uh, flux, runtimes, errs) = SolvePoisson(mesh, bc, poly_deg, d, lam, f, is_adaptive, tol)
+            (uh, flux, runtimes, errs, mesh_it) = SolvePoisson(mesh, bc, poly_deg, d, lam, f, is_adaptive[i], tol, max_it[i], mesh_it, outdir)
+            if bool_savesolution == True:
+                savesolution(mesh, uh, savename+str(int(is_adaptive[i])))
             errs_lst.append(errs)
             runtimes_lst.append(runtimes)
             
@@ -348,9 +430,8 @@ if __name__ == "__main__":
             e = sqrt(e)
             
             # append the results into the file
-            result.write("Adaptivity: " + str(is_adaptive) + ", Solving time: " + str(runtimes[-1]) + ", nDoFs:" + str(errs[-1][0]) + ", Error:" + str(e) + '\n')
-            
-        result.write('\n')
+            result.write("Adaptivity: " + str(is_adaptive[i]) + ", Solving time: " + str(runtimes[-1]) + ", nDoFs:" + str(errs[-1][0]) + ", Error:" + str(e) + '\n')
+    
         result.close()
     
     # plot the uh
@@ -365,7 +446,7 @@ if __name__ == "__main__":
     else:
         plot_title = "manufactured solution"
         
-    # plot the H1 error vs the number of DoFs
+    # plot the H1 error estimate vs the number of DoFs
     plt.figure()
     plt.xlabel("ndof")
     plt.ylabel("H1 error-estimate")
@@ -375,9 +456,9 @@ if __name__ == "__main__":
     plt.loglog(ndof_a,err_a, "*-", label="adaptive")
     leg = plt.legend(loc='upper right')
     plt.title(plot_title, style='italic')
-    plt.savefig("results/err_ndofs.png")
+    plt.savefig(outdir+"/err_ndofs.pdf")
     
-    # plot the H1 error vs runtime
+    # plot the H1 error estimate vs runtime
     plt.figure()
     plt.xlabel("runtime")
     plt.ylabel("H1 error-estimate")
@@ -385,6 +466,20 @@ if __name__ == "__main__":
     plt.loglog(runtimes_lst[1],err_a, "*-", label="adaptive")
     leg = plt.legend(loc='upper right')
     plt.title(plot_title, style='italic')
-    plt.savefig("results/err_runtimes.png")    
+    plt.savefig(outdir+"/err_runtimes.pdf")
+    
+    # save results in a csv file
+    with open(outdir+'/results.csv', 'w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(["H1 error estimate", "nDoFs", "runtime"])
+        writer.writerow([])
+        writer.writerow(["uniformly refined mesh"])
+        for i in range(len(ndof_n)):
+            writer.writerow([err_n[i], ndof_n[i], runtimes_lst[0][i]])
+        writer.writerow([])
+        writer.writerow(["adaptively refined mesh"])
+        for i in range(len(ndof_a)):
+            writer.writerow([err_a[i], ndof_a[i], runtimes_lst[1][i]])
+        
 
     
