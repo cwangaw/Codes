@@ -1,15 +1,17 @@
 import netgen.gui
 import matplotlib.pyplot as plt
-import timeit
 import os, sys
 import csv
+import datetime
 
 from utilities import *
 from netgen.csg import *
 from ngsolve import *
 from numpy import pi,zeros,sqrt
-#from ngsolve.webgui import Draw
 from netgen.geom2d import SplineGeometry
+
+# set up the number of threads to use with TaskManager()
+SetNumThreads(12)
 
 def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 1e-5, max_it = 50, mesh_it = 0, outdir = 'results'):
     '''
@@ -112,7 +114,8 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
 
     # solution
     uh = GridFunction(fes, autoupdate=True)  
-    
+    #c = Preconditioner(a, "h1amg") # Register c to a BEFORE assembly
+    c = MultiGridPreconditioner(a, inverse = "sparsecholesky")
     # save current mesh
     outmeshdir = outdir+"/mesh"
     if not os.path.exists(outmeshdir):
@@ -142,9 +145,16 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
             new_dirichlet_dict = {**bc["d"], **bc["r"]}
             uh.Set(mesh.BoundaryCF(new_dirichlet_dict), BND)
         
-        # solve the linear system    
+        # solve the linear system 
+        #c.Update()
+        #solvers.BVP(bf=a, lf=l, gf=uh, pre=c)
+        
         r = l.vec - a.mat * uh.vec
-        uh.vec.data += a.mat.Inverse(freedofs=fes.FreeDofs()) * r
+        inv = CGSolver(a.mat, c.mat)
+        uh.vec.data += inv * r
+        
+        #r = l.vec - a.mat * uh.vec
+        #uh.vec.data += a.mat.Inverse(freedofs=fes.FreeDofs()) * r
            
     errs = []
     runtimes = []
@@ -193,20 +203,22 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
         return sqrt(sum_eta2)
 
     # start the timer
-    start = timeit.default_timer()
+    start = datetime.datetime.now()
 
     # refine the mesh and solve the equation until the H1 error is within the tolerance
     # we note down the time after each time we run SolveBVP()
     with TaskManager():
         mesh_it = SaveMesh(mesh_it)
         SolveBVP()
-        runtimes.append(timeit.default_timer() - start)
+        time_delta = datetime.datetime.now() - start
+        runtimes.append(time_delta.total_seconds())
         it = 0
         while CalcError() > tol and it < max_it:
             mesh.Refine()
             mesh_it = SaveMesh(mesh_it)
             SolveBVP()
-            runtimes.append(timeit.default_timer() - start)
+            time_delta = datetime.datetime.now() - start
+            runtimes.append(time_delta.total_seconds())
             it += 1
             if it == max_it:
                 warningmsg = "Number of iterations reaches max_it " + str(max_it) + " before the H1 error estimator reaching tolerance " + str(tol) + "\n"
@@ -453,7 +465,9 @@ if __name__ == "__main__":
     ndof_n, err_n = zip(*(errs_lst[0]))
     ndof_a, err_a = zip(*(errs_lst[1]))
     plt.loglog(ndof_n,err_n, '*-', label="not adaptive")
+    new_start = plot_coef(ndof_n,err_n,[min(ndof_n), min(err_n)])
     plt.loglog(ndof_a,err_a, "*-", label="adaptive")
+    plot_coef(ndof_a,err_a,new_start)
     leg = plt.legend(loc='upper right')
     plt.title(plot_title, style='italic')
     plt.savefig(outdir+"/err_ndofs.pdf")
@@ -463,7 +477,9 @@ if __name__ == "__main__":
     plt.xlabel("runtime")
     plt.ylabel("H1 error-estimate")
     plt.loglog(runtimes_lst[0],err_n, '*-', label="not adaptive")
+    new_start = plot_coef(runtimes_lst[0],err_n, [min(runtimes_lst[0]),min(err_n)])
     plt.loglog(runtimes_lst[1],err_a, "*-", label="adaptive")
+    plot_coef(runtimes_lst[1],err_a,new_start)
     leg = plt.legend(loc='upper right')
     plt.title(plot_title, style='italic')
     plt.savefig(outdir+"/err_runtimes.pdf")
