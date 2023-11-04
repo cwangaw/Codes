@@ -9,9 +9,12 @@ from netgen.csg import *
 from ngsolve import *
 from numpy import pi,zeros,sqrt
 from netgen.geom2d import SplineGeometry
+from netgen.meshing import MeshingStep
+from netgen.occ import *
+from netgen.webgui import Draw as DrawGeo
 
 # set up the number of threads to use with TaskManager()
-SetNumThreads(12)
+SetNumThreads(24)
 
 def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 1e-5, max_it = 50, mesh_it = 0, outdir = 'results'):
     '''
@@ -133,10 +136,6 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
     
     # solve for the free dofs
     def SolveBVP():
-        # assemble the bilinear and the linear form
-        a.Assemble()
-        l.Assemble()
-        
         # set up boundary conditions
         if lam > 0:
             if has_dirichlet:
@@ -149,12 +148,13 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
         #c.Update()
         #solvers.BVP(bf=a, lf=l, gf=uh, pre=c)
         
+        # assemble the bilinear and the linear form
+        a.Assemble()
+        l.Assemble()
+
         r = l.vec - a.mat * uh.vec
         inv = CGSolver(a.mat, c.mat)
         uh.vec.data += inv * r
-        
-        #r = l.vec - a.mat * uh.vec
-        #uh.vec.data += a.mat.Inverse(freedofs=fes.FreeDofs()) * r
            
     errs = []
     runtimes = []
@@ -185,6 +185,7 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
             # *** MARK step
             # Mark cells for refinement for which eta > frac eta_max for frac = .95, .90, ...;
             # choose frac so that marked elements account for a given part of total error
+   
             frac = .95
             delfrac = .05
             part = .5
@@ -196,10 +197,14 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
                 sum_marked_eta2 += sum(eta2[new_marked])
                 marked += new_marked
                 frac -= delfrac
-
+               
             for el in mesh.Elements():
-                 mesh.SetRefinementFlag(el, marked[el.nr])
-        
+                mesh.SetRefinementFlag(el, marked[el.nr]) 
+            
+            if mesh.dim == 3:
+                for el in mesh.Elements(BND):
+                    mesh.SetRefinementFlag(el, False)
+                
         return sqrt(sum_eta2)
 
     # start the timer
@@ -225,7 +230,7 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
                 print(warningmsg)
                 with open(outdir+'/misc.txt', 'a') as misc:
                     misc.write(warningmsg)
-        
+    
     if has_robin:
         if lam > 0:
             # the flux through the robin boundaries equals to <(d/lam)*u>_("r")
@@ -233,11 +238,20 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
         else:
             # the flux through the old robin boundaries is <-d*du/dn>_(old_robin)
             n = specialcf.normal(mesh.dim)
-            gradu0 = GridFunction(fes)
-            gradu1 = GridFunction(fes)
-            gradu0.Set(grad(uh)[0])
-            gradu1.Set(grad(uh)[1])
-            flux_top = Integrate(-d*(gradu0*n[0]+gradu1*n[1]), mesh, BND, definedon=mesh.Boundaries(robin_str))
+            if mesh.dim == 2:
+                gradu0 = GridFunction(fes)
+                gradu1 = GridFunction(fes)
+                gradu0.Set(grad(uh)[0])
+                gradu1.Set(grad(uh)[1])
+                flux_top = Integrate(-d*(gradu0*n[0]+gradu1*n[1]), mesh, BND, definedon=mesh.Boundaries(robin_str))
+            else:
+                gradu0 = GridFunction(fes)
+                gradu1 = GridFunction(fes)
+                gradu2 = GridFunction(fes)
+                gradu0.Set(grad(uh)[0])
+                gradu1.Set(grad(uh)[1])
+                gradu2.Set(grad(uh)[1])
+                flux_top = Integrate(-d*(gradu0*n[0]+gradu1*n[1]+gradu2*n[2]), mesh, BND, definedon=mesh.Boundaries(robin_str))                
     else:
         flux_top = 0
     
@@ -315,6 +329,61 @@ def MakeLGeometry(h_max = 0.2):
     mesh = Mesh(geo.GenerateMesh(maxh=h_max))
     
     return mesh
+
+# first we define a function that will be called iteratively in MakeCSGeometry()
+def Fractal3DStructure(cube, p_min, vec1, vec2, vec3, current_level):
+    # p_min, vec1, vec2 provide a square surface on which we grow fractal structure of one lower level
+    # p_min is a vector
+    # starting from p_min, vec1 and vec2 forms a square surface with vec1 x vec2 pointing outward
+    # vec3 is an outward-pointing vector
+    # vec1, vec2, vec3 has length the same as the square
+    
+    if current_level > 0:
+        p_cand = [p_min+(1/3)*vec1+(1/3)*vec2+(1/3)*vec3, p_min+(2/3)*vec1+(2/3)*vec2-(1/30)*vec3]
+        new_min = Pnt(min(p_cand[0].x,p_cand[1].x), min(p_cand[0].y,p_cand[1].y), min(p_cand[0].z,p_cand[1].z))
+        new_max = Pnt(max(p_cand[0].x,p_cand[1].x), max(p_cand[0].y,p_cand[1].y), max(p_cand[0].z,p_cand[1].z))
+        new_cube = Box(new_min, new_max)
+        new_cube.bc("top")
+        '''        new_min = Pnt(min(p_cand[0][0],p_cand[1][0]), min(p_cand[0][1],p_cand[1][1]), min(p_cand[0][2],p_cand[1][2]))
+        new_max = Pnt(max(p_cand[0][0],p_cand[1][0]), max(p_cand[0][1],p_cand[1][1]), max(p_cand[0][2],p_cand[1][2]))'''
+        #new_cube = OrthoBrick(new_min, new_max)
+        cube = cube + new_cube.bc("top")
+    
+    if current_level > 1:
+        for i in range(3):
+            for j in range(3):
+                if i==1 and j==1:
+                    cube = Fractal3DStructure(cube, p_min+(1/3)*vec1+(1/3)*vec2+(1/3)*vec3, (1/3)*vec1, (1/3)*vec2, (1/3)*vec3, current_level-1)
+                else:
+                    cube = Fractal3DStructure(cube, p_min+(i/3)*vec1+(j/3)*vec2, (1/3)*vec1, (1/3)*vec2, (1/3)*vec3, current_level-1)
+        
+        # add fractal structures on the four square surfaces surrounding the new cube
+        cube = Fractal3DStructure(cube, p_min+(1/3)*vec1+(1/3)*vec2, (1/3)*vec1, (1/3)*vec3, (-1/3)*vec2, current_level-1)
+        cube = Fractal3DStructure(cube, p_min+(1/3)*vec1+(2/3)*vec2, (-1/3)*vec2, (1/3)*vec3, (-1/3)*vec1, current_level-1)
+        cube = Fractal3DStructure(cube, p_min+(2/3)*vec1+(2/3)*vec2, (-1/3)*vec1, (1/3)*vec3, (1/3)*vec2, current_level-1)
+        cube = Fractal3DStructure(cube, p_min+(2/3)*vec1+(1/3)*vec2, (1/3)*vec2, (1/3)*vec3, (1/3)*vec1, current_level-1)
+    
+    return cube
+        
+def MakeCSGeometry(fractal_level, h_max = 0.1):
+    cube =  Box(Pnt(0,0,0), Pnt(1,1,1))
+    for i in range(6):
+        if cube.faces[i].center[0]==0 or cube.faces[i].center[0]==1 or cube.faces[i].center[1]==0 or cube.faces[i].center[1]==1:
+            cube.faces[i].name = 'side'
+        elif cube.faces[i].center[2] == 0:
+            cube.faces[i].name = 'bottom'
+        else:
+            cube.faces[i].name = 'top'
+    
+    cube = Fractal3DStructure(cube, Vec(0,0,1), Vec(0,1,0), Vec(1,0,0), Vec(0,0,1), fractal_level)
+    DrawGeo(cube)
+    geo = OCCGeometry(cube)
+    mesh = Mesh(geo.GenerateMesh(maxh=0.4))
+    
+    l = 1/9**fractal_level
+    L_p = (13/9)**fractal_level
+    return mesh,l,L_p
+    
     
 if __name__ == "__main__":
     # generate directory to save the results from this run

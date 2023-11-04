@@ -34,7 +34,7 @@ def plot_coef(x, y, start, rounding = False):
     x = np.array(x)
     y = np.array(y)
 
-    p1, p0 = np.polyfit(np.log(x), np.log(y), deg=1)
+    p1, _ = np.polyfit(np.log(x), np.log(y), deg=1)
  
     # calculating regression coefficients
     if rounding:
