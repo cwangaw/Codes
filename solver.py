@@ -148,17 +148,17 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
         #c.Update()
         #solvers.BVP(bf=a, lf=l, gf=uh, pre=c)
         
-        #c = Preconditioner(a, "h1amg") # Register c to a BEFORE assembly
-        c = MultiGridPreconditioner(a, inverse = "sparsecholesky")
+        #c = Preconditioner(a, "multigrid") # Register c to a BEFORE assembly
+        #c = MultiGridPreconditioner(a, inverse = "sparsecholesky")
         # assemble the bilinear and the linear form
         a.Assemble()
         l.Assemble()
 
-        r = l.vec - a.mat * uh.vec
-        inv = CGSolver(a.mat, c.mat)
-        uh.vec.data += inv * r
         #r = l.vec - a.mat * uh.vec
-        #uh.vec.data += a.mat.Inverse(fes.FreeDofs(), inverse="sparsecholesky") * r
+        #inv = CGSolver(a.mat, c.mat)
+        #uh.vec.data += inv * r
+        r = l.vec - a.mat * uh.vec
+        uh.vec.data += a.mat.Inverse(fes.FreeDofs(), inverse="sparsecholesky") * r
            
     errs = []
     runtimes = []
