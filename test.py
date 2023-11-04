@@ -14,6 +14,6 @@ mesh_it = 0
 
 # set up boundary conditions
 bc = {"d": {"bottom": 1}, "n": {"side": 0}, "r": {"top": 0}}
-(uh, flux, runtimes, errs, mesh_it) = SolvePoisson(mesh, bc, 5, 1, 20*L_p, 0, True, 1e-8, 5, mesh_it, outdir)
+(uh, flux, runtimes, errs, mesh_it) = SolvePoisson(mesh, bc, 5, 1, 20*L_p, 0, True, 1e-8, 4, mesh_it, outdir)
 
 Draw(uh)
