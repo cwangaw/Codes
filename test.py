@@ -2,7 +2,7 @@ from solver import *
 from utilities import *
 from ngsolve import *
 
-mesh,l,L_p = MakeCSGeometry(0)
+mesh,l,L_p = MakeCSGeometry(3)
 Draw(mesh)
 
 # generate directory to save the results from this run
