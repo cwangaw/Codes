@@ -211,6 +211,10 @@ def MakeGeometry(h_max = 0.1):
             cube.faces[i].name = 'bottom'
         else:
             cube.faces[i].name = 'top'
+            
+    new_cube = Box(Pnt(1/3,1/3,1), Pnt(2/3,2/3,4/3))
+    new_cube.bc("top")
+    cube = cube + new_cube
     geo = OCCGeometry(cube)
     mesh = Mesh(geo.GenerateMesh(maxh=h_max))
     return mesh
