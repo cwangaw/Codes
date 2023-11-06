@@ -7,11 +7,19 @@ import datetime
 from utilities import *
 from netgen.csg import *
 from ngsolve import *
-from numpy import pi,zeros,sqrt
 from netgen.geom2d import SplineGeometry
 from netgen.meshing import MeshingStep
 from netgen.occ import *
 from netgen.webgui import Draw as DrawGeo
+
+#from ipyparallel import Cluster
+#c = await Cluster(engines="mpi").start_and_connect(n=4, activate=True)
+
+from ngsolve import *
+from netgen.occ import unit_square
+from mpi4py.MPI import COMM_WORLD as comm
+import numpy as np
+import petsc4py.PETSc as psc
 
 # set up the number of threads to use with TaskManager()
 SetNumThreads(24)
@@ -154,10 +162,10 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
         a.Assemble()
         l.Assemble()
 
-        #r = l.vec - a.mat * uh.vec
+        r = l.vec - a.mat * uh.vec
         #inv = CGSolver(a.mat, c.mat)
         #uh.vec.data += inv * r
-        r = l.vec - a.mat * uh.vec
+        
         uh.vec.data += a.mat.Inverse(fes.FreeDofs(), inverse="sparsecholesky") * r
            
     errs = []
@@ -193,7 +201,7 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
             frac = .95
             delfrac = .05
             part = .5
-            marked = zeros(mesh.ne, dtype=bool) # marked starts as False for all elements
+            marked = np.zeros(mesh.ne, dtype=bool) # marked starts as False for all elements
             sum_marked_eta2 = 0. # sum over marked elements of squared error indicators
 
             while sum_marked_eta2 < part*sum_eta2:
