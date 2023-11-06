@@ -53,7 +53,7 @@ tol = 1e-5
 d = 1
 
 # set up max number of iteration
-max_it = 2
+max_it = 3
 
 # mesh generation
 (mesh, ell_e, ell_p) = MakeCSGeometry(fractal_level)
@@ -71,7 +71,7 @@ flux_top_lst = []
 asymp_coeff_lst = []
 
 # set up boundary conditions
-bc = {"d": {"bottom": 1}, "n": {"right": 0, "left":0}, "r": {"top": 0}}
+bc = {"d": {"bottom": 1}, "n": {"side": 0}, "r": {"top": 0}}
 
 # total number of lambda's with which we are going to solve the pde
 tot = 100

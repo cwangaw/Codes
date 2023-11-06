@@ -19,6 +19,8 @@ from ngsolve import *
 from netgen.occ import unit_square
 from mpi4py.MPI import COMM_WORLD as comm
 import numpy as np
+
+import ngsolve.ngs2petsc as n2p
 import petsc4py.PETSc as psc
 
 # set up the number of threads to use with TaskManager()
@@ -126,7 +128,7 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
     # solution
     uh = GridFunction(fes, autoupdate=True)  
     #c = Preconditioner(a, "h1amg") # Register c to a BEFORE assembly
-    #c = MultiGridPreconditioner(a, inverse = "sparsecholesky")
+    c = MultiGridPreconditioner(a, inverse = "sparsecholesky")
     # save current mesh
     outmeshdir = outdir+"/mesh"
     if not os.path.exists(outmeshdir):
@@ -163,10 +165,10 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
         l.Assemble()
 
         r = l.vec - a.mat * uh.vec
-        #inv = CGSolver(a.mat, c.mat)
-        #uh.vec.data += inv * r
+        inv = CGSolver(a.mat, c.mat)
+        uh.vec.data += inv * r
         
-        uh.vec.data += a.mat.Inverse(fes.FreeDofs(), inverse="sparsecholesky") * r
+        #uh.vec.data += a.mat.Inverse(fes.FreeDofs(), inverse="sparsecholesky") * r
            
     errs = []
     runtimes = []
@@ -320,7 +322,7 @@ def MakeGeometry(fractal_level, h_max = 0.2):
     ell_p = (4.0/3.0)**fractal_level
     
     # mesh generation
-    mesh = Mesh(geo.GenerateMesh(maxh=h_max))
+    mesh = Mesh(geo.GenerateMesh(maxh=h_max, comm=comm))
     
     return mesh, ell_e, ell_p
 
@@ -338,7 +340,7 @@ def MakeLGeometry(h_max = 0.2):
     geo.Append (["line", len(pnts)-1, 0], bc="dirichlet")
     
     # mesh generation
-    mesh = Mesh(geo.GenerateMesh(maxh=h_max))
+    mesh = Mesh(geo.GenerateMesh(maxh=h_max, comm = comm))
     
     return mesh
 
@@ -390,7 +392,7 @@ def MakeCSGeometry(fractal_level, h_max = 0.1):
     cube = Fractal3DStructure(cube, Vec(0,0,1), Vec(0,1,0), Vec(1,0,0), Vec(0,0,1), fractal_level)
     DrawGeo(cube)
     geo = OCCGeometry(cube)
-    mesh = Mesh(geo.GenerateMesh(maxh=0.4))
+    mesh = Mesh(geo.GenerateMesh(maxh=0.4, comm=comm))
     
     l = 1/9**fractal_level
     L_p = (13/9)**fractal_level
