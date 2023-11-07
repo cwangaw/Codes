@@ -125,6 +125,7 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
             
     # solution
     uh = GridFunction(fes)
+    c = MultiGridPreconditioner(a, inverse = "sparsecholesky")
     
     # save current mesh
     outmeshdir = outdir+"/mesh"
@@ -154,7 +155,7 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
         # solve the linear system 
         
         # assemble the bilinear and the linear form
-        c = Preconditioner(a,"bddc")
+        #c = Preconditioner(a,"bddc")
         a.Assemble()
         l.Assemble()
 
