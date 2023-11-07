@@ -487,7 +487,7 @@ if __name__ == "__main__":
 
         # set up manufactured solution
         # and the corresponding source term and boundary data
-        manu_sol = x**3*y*z
+        manu_sol = x*y*z
         f = -((d*manu_sol.Diff(x)).Diff(x) + (d*manu_sol.Diff(y)).Diff(y) + (d*manu_sol.Diff(z)).Diff(z))
         n = specialcf.normal(mesh.dim)
         du_nu = manu_sol.Diff(x)*n[0]+manu_sol.Diff(y)*n[1]
