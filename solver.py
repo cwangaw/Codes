@@ -506,7 +506,7 @@ if __name__ == "__main__":
         max_it = [5, 10]
         for i in range(2):
             # initialize a new mesh, on which we solve the pde
-            (mesh, _, _) = MakeGeometry(fractal_level)
+            (mesh, _, _) = MakeCSGeometry(fractal_level)
             (uh, flux, runtimes, errs, mesh_it) = SolvePoisson(mesh, bc, poly_deg, d, lam, f, is_adaptive[i], tol, max_it[i], mesh_it, outdir)
             if bool_savesolution == True:
                 savesolution(mesh, uh, savename+str(int(is_adaptive[i])))
