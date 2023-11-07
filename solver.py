@@ -23,6 +23,7 @@ import numpy as np
 import ngsolve.ngs2petsc as n2p
 import petsc4py.PETSc as psc
 
+from ngsolve.krylovspace import CGSolver
 # set up the number of threads to use with TaskManager()
 SetNumThreads(24)
 
@@ -155,18 +156,39 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
             uh.Set(mesh.BoundaryCF(new_dirichlet_dict), BND)
         
         # solve the linear system 
-        #c.Update()
-        #solvers.BVP(bf=a, lf=l, gf=uh, pre=c)
         
-        #c = Preconditioner(a, "multigrid") # Register c to a BEFORE assembly
-        #c = MultiGridPreconditioner(a, inverse = "sparsecholesky")
         # assemble the bilinear and the linear form
+        #pre = Preconditioner(a,"bddc", usehypre=True)
         a.Assemble()
         l.Assemble()
-
-        r = l.vec - a.mat * uh.vec
-        inv = CGSolver(a.mat, c.mat)
-        uh.vec.data += inv * r
+        
+        # the function CreatePETScMatrix takes an NGSolve matrix, 
+        # and creates a PETSc matrix from it. 
+        # a VectorMapping object can map vectors between NGSolve and PETSc.
+        psc_mat = n2p.CreatePETScMatrix(a.mat, fes.FreeDofs())
+        vecmap = n2p.VectorMapping (a.mat.row_pardofs, fes.FreeDofs())
+        
+        # create PETSc-vectors fitting to the matrix
+        psc_l, psc_u = psc_mat.createVecs()
+        ksp = psc.KSP()
+        ksp.create()
+        ksp.setOperators(psc_mat)
+        ksp.setType(psc.KSP.Type.CG)
+        ksp.setNormType(psc.KSP.NormType.NORM_NATURAL)
+        ksp.getPC().setType("bddc", usehypre=True)
+        ksp.setTolerances(rtol=1e-6, atol=0, divtol=1e16, max_it=400)
+        
+        # moving vectors between NGSolve and PETSc, and solve:
+        vecmap.N2P(l.vec-a.mat*uh.vec, psc_l)
+        ksp.solve(psc_l, psc_u)
+        vecmap.P2N(psc_u, uh.vec)
+        
+        #uh = c[:]["uh"]
+        uh += c[:]["uh"]
+        # Setting up the parallel Krylov-space solver
+        #r = l.vec - a.mat * uh.vec
+        #inv = CGSolver(a.mat, c.mat)
+        #uh.vec.data += inv * r
         
         #uh.vec.data += a.mat.Inverse(fes.FreeDofs(), inverse="sparsecholesky") * r
            
