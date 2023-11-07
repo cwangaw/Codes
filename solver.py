@@ -11,16 +11,10 @@ from netgen.geom2d import SplineGeometry
 from netgen.meshing import MeshingStep
 from netgen.occ import *
 from netgen.webgui import Draw as DrawGeo
+
+from ngsolve import *
+from netgen.occ import unit_square
 import numpy as np
-
-#from ipyparallel import Client
-#c = Client(profile='mpi')
-
-#import ngsolve.ngs2petsc as n2p
-#import petsc4py.PETSc as psc
-
-from ngsolve.krylovspace import CGSolver
-#from mpi4py.MPI import COMM_WORLD as comm
 
 # set up the number of threads to use with TaskManager()
 SetNumThreads(24)
@@ -104,7 +98,8 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
             new_dirichlet_str = robin_str
         fes = H1(mesh, order=deg, dirichlet=new_dirichlet_str, autoupdate=True)
     
-    u,v = fes.TnT()
+    u = fes.TrialFunction()  # symbolic object
+    v = fes.TestFunction()   # symbolic object
 
     # intialize and define the bilinear form a(u,v)
     a = BilinearForm(fes)
@@ -122,11 +117,11 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
     if lam > 0:
         for label in bc["r"].keys():
             l += (d/lam)*bc["r"][label]*v*ds(label)
-            
+
     # solution
-    uh = GridFunction(fes)
+    uh = GridFunction(fes, autoupdate=True)  
+    #c = Preconditioner(a, "h1amg") # Register c to a BEFORE assembly
     c = MultiGridPreconditioner(a, inverse = "sparsecholesky")
-    
     # save current mesh
     outmeshdir = outdir+"/mesh"
     if not os.path.exists(outmeshdir):
@@ -153,13 +148,15 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
             uh.Set(mesh.BoundaryCF(new_dirichlet_dict), BND)
         
         # solve the linear system 
+        #c.Update()
+        #solvers.BVP(bf=a, lf=l, gf=uh, pre=c)
         
+        #c = Preconditioner(a, "multigrid") # Register c to a BEFORE assembly
+        #c = MultiGridPreconditioner(a, inverse = "sparsecholesky")
         # assemble the bilinear and the linear form
-        #c = Preconditioner(a,"bddc")
         a.Assemble()
         l.Assemble()
 
-        # Setting up the parallel Krylov-space solver
         r = l.vec - a.mat * uh.vec
         inv = CGSolver(a.mat, c.mat)
         uh.vec.data += inv * r
@@ -336,7 +333,7 @@ def MakeLGeometry(h_max = 0.2):
     geo.Append (["line", len(pnts)-1, 0], bc="dirichlet")
     
     # mesh generation
-    mesh = Mesh(geo.GenerateMesh(maxh=h_max)) #, comm = comm))
+    mesh = Mesh(geo.GenerateMesh(maxh=h_max))
     
     return mesh
 
@@ -388,7 +385,7 @@ def MakeCSGeometry(fractal_level, h_max = 0.1):
     cube = Fractal3DStructure(cube, Vec(0,0,1), Vec(0,1,0), Vec(1,0,0), Vec(0,0,1), fractal_level)
     DrawGeo(cube)
     geo = OCCGeometry(cube)
-    mesh = Mesh(geo.GenerateMesh(maxh=h_max)) #, comm=comm))
+    mesh = Mesh(geo.GenerateMesh(maxh=0.4))
     
     l = 1/9**fractal_level
     L_p = (13/9)**fractal_level
