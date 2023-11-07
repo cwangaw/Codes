@@ -16,6 +16,9 @@ from ngsolve import *
 from netgen.occ import unit_square
 import numpy as np
 
+# set up the number of threads to use with TaskManager()
+#SetNumThreads(32)
+
 def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 1e-5, max_it = 50):
     '''
     Input:
@@ -104,7 +107,7 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
 
     # solution
     uh = GridFunction(fes, autoupdate=True) 
-    #c = MultiGridPreconditioner(a, inverse = "sparsecholesky") # Register c to a BEFORE assembly
+    c = MultiGridPreconditioner(a, inverse = "sparsecholesky") # Register c to a BEFORE assembly
 
     # solve for the free dofs
     def SolveBVP():
@@ -123,11 +126,12 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
         r = l.vec - a.mat * uh.vec
         
         # preconditioner
-        #inv = CGSolver(a.mat, c.mat)
-        #uh.vec.data += inv * r
+        c.Update()
+        inv = CGSolver(a.mat, c.mat)
+        uh.vec.data += inv * r
         
         # direct solver
-        uh.vec.data += a.mat.Inverse(fes.FreeDofs()) * r
+        #uh.vec.data += a.mat.Inverse(fes.FreeDofs()) * r
            
     errs = []
     runtimes = []
@@ -224,7 +228,7 @@ if __name__ == "__main__":
     poly_deg = 5
 
     # set up if we want to refine the mesh adaptively
-    is_adaptive = True
+    is_adaptive = False
 
     # set up the error tolerance for mesh refinement
     tol = 1e-8
@@ -234,7 +238,7 @@ if __name__ == "__main__":
     lam = d
 
     # set up max number of iteration
-    max_it = 5
+    max_it = 3
     
     # mesh generation
     mesh = MakeGeometry()
