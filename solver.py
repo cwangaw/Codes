@@ -344,7 +344,7 @@ def MakeGeometry(fractal_level, h_max = 0.2):
     ell_p = (4.0/3.0)**fractal_level
     
     # mesh generation
-    mesh = Mesh(geo.GenerateMesh(maxh=h_max, comm=comm))
+    mesh = Mesh(geo.GenerateMesh(maxh=h_max))
     
     return mesh, ell_e, ell_p
 
