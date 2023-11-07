@@ -154,7 +154,7 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
         # solve the linear system 
         
         # assemble the bilinear and the linear form
-        c = Preconditioner(a,"bddc", usehypre=True)
+        c = Preconditioner(a,"bddc")
         a.Assemble()
         l.Assemble()
 
