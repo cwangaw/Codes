@@ -12,18 +12,20 @@ from netgen.meshing import MeshingStep
 from netgen.occ import *
 from netgen.webgui import Draw as DrawGeo
 
-#from ipyparallel import Cluster
-#c = await Cluster(engines="mpi").start_and_connect(n=4, activate=True)
+from ipyparallel import Cluster
+c = await Cluster(engines="mpi").start_and_connect(n=4, activate=True)
 
 from ngsolve import *
 from netgen.occ import unit_square
-from mpi4py.MPI import COMM_WORLD as comm
 import numpy as np
 
 import ngsolve.ngs2petsc as n2p
 import petsc4py.PETSc as psc
 
 from ngsolve.krylovspace import CGSolver
+
+comm = MPI.COMM_WORLD
+
 # set up the number of threads to use with TaskManager()
 SetNumThreads(24)
 
@@ -126,10 +128,6 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
         for label in bc["r"].keys():
             l += (d/lam)*bc["r"][label]*v*ds(label)
 
-    # solution
-    uh = GridFunction(fes, autoupdate=True)  
-    #c = Preconditioner(a, "h1amg") # Register c to a BEFORE assembly
-    c = MultiGridPreconditioner(a, inverse = "sparsecholesky")
     # save current mesh
     outmeshdir = outdir+"/mesh"
     if not os.path.exists(outmeshdir):
@@ -147,6 +145,9 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
     
     # solve for the free dofs
     def SolveBVP():
+        # solution
+        uh = GridFunction(fes)
+         
         # set up boundary conditions
         if lam > 0:
             if has_dirichlet:
