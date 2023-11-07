@@ -53,7 +53,7 @@ tol = 1e-5
 d = 1
 
 # set up max number of iteration
-max_it = 3
+max_it = 2
 
 # mesh generation
 (mesh, ell_e, ell_p) = MakeCSGeometry(fractal_level)
