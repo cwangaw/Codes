@@ -1,6 +1,3 @@
-from ipyparallel import Client
-c = Client(profile='mpi')
-
 import netgen.gui
 import matplotlib.pyplot as plt
 import os, sys
@@ -14,8 +11,10 @@ from netgen.geom2d import SplineGeometry
 from netgen.meshing import MeshingStep
 from netgen.occ import *
 from netgen.webgui import Draw as DrawGeo
-
 import numpy as np
+
+from ipyparallel import Client
+c = Client(profile='mpi')
 
 import ngsolve.ngs2petsc as n2p
 import petsc4py.PETSc as psc
