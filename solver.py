@@ -1,3 +1,6 @@
+from ipyparallel import Client
+c = Client(profile='mpi')
+
 import netgen.gui
 import matplotlib.pyplot as plt
 import os, sys
@@ -12,18 +15,12 @@ from netgen.meshing import MeshingStep
 from netgen.occ import *
 from netgen.webgui import Draw as DrawGeo
 
-from ipyparallel import Client
-c = Client(profile='mpi')
-
-from ngsolve import *
-from netgen.occ import unit_square
 import numpy as np
 
 import ngsolve.ngs2petsc as n2p
 import petsc4py.PETSc as psc
 
 from ngsolve.krylovspace import CGSolver
-
 from mpi4py.MPI import COMM_WORLD as comm
 
 # set up the number of threads to use with TaskManager()
@@ -108,8 +105,7 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
             new_dirichlet_str = robin_str
         fes = H1(mesh, order=deg, dirichlet=new_dirichlet_str, autoupdate=True)
     
-    u = fes.TrialFunction()  # symbolic object
-    v = fes.TestFunction()   # symbolic object
+    u,v = fes.TnT()
 
     # intialize and define the bilinear form a(u,v)
     a = BilinearForm(fes)
