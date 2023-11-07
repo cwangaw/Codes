@@ -24,7 +24,7 @@ import petsc4py.PETSc as psc
 
 from ngsolve.krylovspace import CGSolver
 
-comm = MPI.COMM_WORLD
+from mpi4py.MPI import COMM_WORLD as comm
 
 # set up the number of threads to use with TaskManager()
 SetNumThreads(24)
