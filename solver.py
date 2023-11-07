@@ -13,14 +13,14 @@ from netgen.occ import *
 from netgen.webgui import Draw as DrawGeo
 import numpy as np
 
-from ipyparallel import Client
-c = Client(profile='mpi')
+#from ipyparallel import Client
+#c = Client(profile='mpi')
 
-import ngsolve.ngs2petsc as n2p
-import petsc4py.PETSc as psc
+#import ngsolve.ngs2petsc as n2p
+#import petsc4py.PETSc as psc
 
 from ngsolve.krylovspace import CGSolver
-from mpi4py.MPI import COMM_WORLD as comm
+#from mpi4py.MPI import COMM_WORLD as comm
 
 # set up the number of threads to use with TaskManager()
 SetNumThreads(24)
@@ -154,37 +154,14 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
         # solve the linear system 
         
         # assemble the bilinear and the linear form
-        #pre = Preconditioner(a,"bddc", usehypre=True)
+        c = Preconditioner(a,"bddc", usehypre=True)
         a.Assemble()
         l.Assemble()
-        
-        # the function CreatePETScMatrix takes an NGSolve matrix, 
-        # and creates a PETSc matrix from it. 
-        # a VectorMapping object can map vectors between NGSolve and PETSc.
-        psc_mat = n2p.CreatePETScMatrix(a.mat, fes.FreeDofs())
-        vecmap = n2p.VectorMapping (a.mat.row_pardofs, fes.FreeDofs())
-        
-        # create PETSc-vectors fitting to the matrix
-        psc_l, psc_u = psc_mat.createVecs()
-        ksp = psc.KSP()
-        ksp.create()
-        ksp.setOperators(psc_mat)
-        ksp.setType(psc.KSP.Type.CG)
-        ksp.setNormType(psc.KSP.NormType.NORM_NATURAL)
-        ksp.getPC().setType("bddc", usehypre=True)
-        ksp.setTolerances(rtol=1e-6, atol=0, divtol=1e16, max_it=400)
-        
-        # moving vectors between NGSolve and PETSc, and solve:
-        vecmap.N2P(l.vec-a.mat*uh.vec, psc_l)
-        ksp.solve(psc_l, psc_u)
-        vecmap.P2N(psc_u, uh.vec)
-        
-        #uh = c[:]["uh"]
-        uh += c[:]["uh"]
+
         # Setting up the parallel Krylov-space solver
-        #r = l.vec - a.mat * uh.vec
-        #inv = CGSolver(a.mat, c.mat)
-        #uh.vec.data += inv * r
+        r = l.vec - a.mat * uh.vec
+        inv = CGSolver(a.mat, c.mat)
+        uh.vec.data += inv * r
         
         #uh.vec.data += a.mat.Inverse(fes.FreeDofs(), inverse="sparsecholesky") * r
            
@@ -358,7 +335,7 @@ def MakeLGeometry(h_max = 0.2):
     geo.Append (["line", len(pnts)-1, 0], bc="dirichlet")
     
     # mesh generation
-    mesh = Mesh(geo.GenerateMesh(maxh=h_max, comm = comm))
+    mesh = Mesh(geo.GenerateMesh(maxh=h_max)) #, comm = comm))
     
     return mesh
 
@@ -410,7 +387,7 @@ def MakeCSGeometry(fractal_level, h_max = 0.1):
     cube = Fractal3DStructure(cube, Vec(0,0,1), Vec(0,1,0), Vec(1,0,0), Vec(0,0,1), fractal_level)
     DrawGeo(cube)
     geo = OCCGeometry(cube)
-    mesh = Mesh(geo.GenerateMesh(maxh=0.4, comm=comm))
+    mesh = Mesh(geo.GenerateMesh(maxh=h_max)) #, comm=comm))
     
     l = 1/9**fractal_level
     L_p = (13/9)**fractal_level
