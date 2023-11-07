@@ -122,7 +122,10 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
     if lam > 0:
         for label in bc["r"].keys():
             l += (d/lam)*bc["r"][label]*v*ds(label)
-
+            
+    # solution
+    uh = GridFunction(fes)
+    
     # save current mesh
     outmeshdir = outdir+"/mesh"
     if not os.path.exists(outmeshdir):
@@ -140,9 +143,6 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
     
     # solve for the free dofs
     def SolveBVP():
-        # solution
-        uh = GridFunction(fes)
-         
         # set up boundary conditions
         if lam > 0:
             if has_dirichlet:
