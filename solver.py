@@ -471,6 +471,56 @@ if __name__ == "__main__":
             errs_lst.append(errs)
             runtimes_lst.append(runtimes)
             
+    elif len(sys.argv) > 1 and sys.argv[1] == "3d":
+        # write down the test
+        with open(outdir+'/misc.txt', 'a') as misc:
+            misc.write("Testing the Robin bc on a fractal boundary problem with a manufactured solution" + "\n")
+
+        # set up the parameter for refining the fractal structure
+        fractal_level = 2
+        
+        # mesh generation
+        (mesh, ell_e, ell_p) = MakeCSGeometry(fractal_level)
+        # set up parameters for the pde
+        d = 2.56
+        lam = ell_p
+
+        # set up manufactured solution
+        # and the corresponding source term and boundary data
+        manu_sol = x**3*y*z
+        f = -((d*manu_sol.Diff(x)).Diff(x) + (d*manu_sol.Diff(y)).Diff(y))
+        n = specialcf.normal(mesh.dim)
+        du_nu = manu_sol.Diff(x)*n[0]+manu_sol.Diff(y)*n[1]
+        g_b = manu_sol
+        g_l = d*du_nu
+        g_r = d*du_nu
+        g_t = lam*du_nu + manu_sol
+        bc = {"d": {"bottom": g_b}, "n": {"right": g_r, "left": g_l}, "r": {"top": g_t}}
+        # Compare the running time and number of dofs for 
+        # traditionally and adaptively refined mesh
+        result = open(outdir+"/comparison.txt", "a+")
+        
+        errs_lst = []
+        runtimes_lst = []
+        is_adaptive = [False, True]
+        max_it = [5, 10]
+        for i in range(2):
+            # initialize a new mesh, on which we solve the pde
+            (mesh, _, _) = MakeGeometry(fractal_level)
+            (uh, flux, runtimes, errs, mesh_it) = SolvePoisson(mesh, bc, poly_deg, d, lam, f, is_adaptive[i], tol, max_it[i], mesh_it, outdir)
+            if bool_savesolution == True:
+                savesolution(mesh, uh, savename+str(int(is_adaptive[i])))
+            errs_lst.append(errs)
+            runtimes_lst.append(runtimes)
+            
+            # calculate and print the L2 error
+            e = Integrate((uh-manu_sol)**2, mesh, VOL)
+            e = sqrt(e)
+            
+            # append the results into the file
+            result.write("Adaptivity: " + str(is_adaptive[i]) + ", Solving time: " + str(runtimes[-1]) + ", nDoFs:" + str(errs[-1][0]) + ", Error:" + str(e) + '\n')
+    
+        result.close()       
     else:
         # write down the test
         with open(outdir+'/misc.txt', 'a') as misc:
