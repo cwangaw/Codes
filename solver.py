@@ -492,10 +492,9 @@ if __name__ == "__main__":
         n = specialcf.normal(mesh.dim)
         du_nu = manu_sol.Diff(x)*n[0]+manu_sol.Diff(y)*n[1]
         g_b = manu_sol
-        g_l = d*du_nu
-        g_r = d*du_nu
+        g_s = d*du_nu
         g_t = lam*du_nu + manu_sol
-        bc = {"d": {"bottom": g_b}, "n": {"right": g_r, "left": g_l}, "r": {"top": g_t}}
+        bc = {"d": {"bottom": g_b}, "n": {"side": g_s}, "r": {"top": g_t}}
         # Compare the running time and number of dofs for 
         # traditionally and adaptively refined mesh
         result = open(outdir+"/comparison.txt", "a+")
