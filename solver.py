@@ -12,8 +12,8 @@ from netgen.meshing import MeshingStep
 from netgen.occ import *
 from netgen.webgui import Draw as DrawGeo
 
-#from ipyparallel import Cluster
-#c = await Cluster(engines="mpi").start_and_connect(n=4, activate=True)
+from ipyparallel import Client
+c = Client(profile='mpi')
 
 from ngsolve import *
 from netgen.occ import unit_square
