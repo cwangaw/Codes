@@ -121,7 +121,7 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
     # solution
     uh = GridFunction(fes, autoupdate=True)  
     #c = Preconditioner(a, "h1amg") # Register c to a BEFORE assembly
-    c = MultiGridPreconditioner(a, inverse = "sparsecholesky")
+    #c = MultiGridPreconditioner(a, inverse = "sparsecholesky")
     # save current mesh
     outmeshdir = outdir+"/mesh"
     if not os.path.exists(outmeshdir):
@@ -158,10 +158,10 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
         l.Assemble()
 
         r = l.vec - a.mat * uh.vec
-        inv = CGSolver(a.mat, c.mat)
-        uh.vec.data += inv * r
+        #inv = CGSolver(a.mat, c.mat)
+        #uh.vec.data += inv * r
         
-        #uh.vec.data += a.mat.Inverse(fes.FreeDofs(), inverse="sparsecholesky") * r
+        uh.vec.data += a.mat.Inverse(fes.FreeDofs(), inverse="sparsecholesky") * r
            
     errs = []
     runtimes = []
@@ -502,7 +502,7 @@ if __name__ == "__main__":
         errs_lst = []
         runtimes_lst = []
         is_adaptive = [False, True]
-        max_it = [5, 10]
+        max_it = [2, 2]
         for i in range(2):
             # initialize a new mesh, on which we solve the pde
             (mesh, _, _) = MakeCSGeometry(fractal_level)
