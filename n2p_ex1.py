@@ -5,17 +5,17 @@ from netgen.csg import unit_cube
 from ngsolve.krylovspace import CGSolver
 import petsc4py.PETSc as psc
 
-def masterprint (*args, comm=MPI.COMM_WORLD):
-    if comm.rank==0:
+def masterprint (*args, commm=MPI.COMM_WORLD):
+    if commm.rank==0:
         print (*args)
 
 
-comm = MPI.COMM_WORLD
+commm = MPI.COMM_WORLD
 
-if comm.rank == 0:
-    ngmesh = unit_cube.GenerateMesh(maxh=0.1).Distribute(comm)
+if commm.rank == 0:
+    ngmesh = unit_cube.GenerateMesh(maxh=0.1).Distribute(comm = commm)
 else:
-    ngmesh = netgen.meshing.Mesh.Receive(comm)
+    ngmesh = netgen.meshing.Mesh.Receive(comm = commm)
 
 
 for l in range(0):
@@ -41,10 +41,10 @@ ind = np.array(ind, dtype='int32')
 
 apsc_loc = psc.Mat().createAIJ(size=(locmat.height, locmat.width), csr=(ind,col,val), comm=MPI.COMM_SELF)
 
-IS = psc.IS().createBlock (bsize=1, indices=globnums, comm=comm)
-lgmap = psc.LGMap().create (bsize=1, indices=globnums, comm=comm)
+IS = psc.IS().createBlock (bsize=1, indices=globnums, comm=commm)
+lgmap = psc.LGMap().create (bsize=1, indices=globnums, comm=commm)
 
-mat = psc.Mat().createPython(size=nglob, comm=comm)
+mat = psc.Mat().createPython(size=nglob, comm=commm)
 mat.setType(psc.Mat.Type.IS)
 mat.setLGMap(lgmap)
 mat.setISLocalMat(apsc_loc)
