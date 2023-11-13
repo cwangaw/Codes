@@ -228,7 +228,7 @@ if __name__ == "__main__":
     poly_deg = 5
 
     # set up if we want to refine the mesh adaptively
-    is_adaptive = False
+    is_adaptive = True
 
     # set up the error tolerance for mesh refinement
     tol = 1e-8
