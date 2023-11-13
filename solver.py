@@ -17,7 +17,7 @@ from netgen.occ import unit_square
 import numpy as np
 
 # set up the number of threads to use with TaskManager()
-SetNumThreads(24)
+SetNumThreads(32)
 
 def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 1e-5, max_it = 50, mesh_it = 0, outdir = 'results'):
     '''
@@ -121,7 +121,7 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
     # solution
     uh = GridFunction(fes, autoupdate=True)  
     #c = Preconditioner(a, "h1amg") # Register c to a BEFORE assembly
-    #c = MultiGridPreconditioner(a, inverse = "sparsecholesky")
+    c = MultiGridPreconditioner(a, inverse = "sparsecholesky")
     # save current mesh
     outmeshdir = outdir+"/mesh"
     if not os.path.exists(outmeshdir):
@@ -158,10 +158,10 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
         l.Assemble()
 
         r = l.vec - a.mat * uh.vec
-        #inv = CGSolver(a.mat, c.mat)
-        #uh.vec.data += inv * r
+        inv = CGSolver(a.mat, c.mat)
+        uh.vec.data += inv * r
         
-        uh.vec.data += a.mat.Inverse(fes.FreeDofs(), inverse="sparsecholesky") * r
+        #uh.vec.data += a.mat.Inverse(fes.FreeDofs(), inverse="sparsecholesky") * r
            
     errs = []
     runtimes = []
@@ -385,7 +385,7 @@ def MakeCSGeometry(fractal_level, h_max = 0.1):
     cube = Fractal3DStructure(cube, Vec(0,0,1), Vec(0,1,0), Vec(1,0,0), Vec(0,0,1), fractal_level)
     DrawGeo(cube)
     geo = OCCGeometry(cube)
-    mesh = Mesh(geo.GenerateMesh(maxh=0.4))
+    mesh = Mesh(geo.GenerateMesh(maxh = h_max))
     
     l = 1/9**fractal_level
     L_p = (13/9)**fractal_level
@@ -409,7 +409,7 @@ if __name__ == "__main__":
             os.makedirs(outdir + '/femsol')
     
     # set up the order of Lagrangian finite element
-    poly_deg = 5
+    poly_deg = 2
     
     # set up the desired tolerance for the parameter eta in mesh refinment
     tol = 1e-6
@@ -477,7 +477,7 @@ if __name__ == "__main__":
             misc.write("Testing the Robin bc on a fractal boundary problem with a manufactured solution" + "\n")
 
         # set up the parameter for refining the fractal structure
-        fractal_level = 2
+        fractal_level = 1
         
         # mesh generation
         (mesh, ell_e, ell_p) = MakeCSGeometry(fractal_level)
@@ -487,10 +487,10 @@ if __name__ == "__main__":
 
         # set up manufactured solution
         # and the corresponding source term and boundary data
-        manu_sol = x*y*z
+        manu_sol = x**3*y*z
         f = -((d*manu_sol.Diff(x)).Diff(x) + (d*manu_sol.Diff(y)).Diff(y) + (d*manu_sol.Diff(z)).Diff(z))
         n = specialcf.normal(mesh.dim)
-        du_nu = manu_sol.Diff(x)*n[0]+manu_sol.Diff(y)*n[1]
+        du_nu = manu_sol.Diff(x)*n[0]+manu_sol.Diff(y)*n[1]+manu_sol.Diff(z)*n[2]
         g_b = manu_sol
         g_s = d*du_nu
         g_t = lam*du_nu + manu_sol
@@ -502,7 +502,7 @@ if __name__ == "__main__":
         errs_lst = []
         runtimes_lst = []
         is_adaptive = [False, True]
-        max_it = [2, 2]
+        max_it = [4, 4]
         for i in range(2):
             # initialize a new mesh, on which we solve the pde
             (mesh, _, _) = MakeCSGeometry(fractal_level)
@@ -536,7 +536,7 @@ if __name__ == "__main__":
 
         # set up manufactured solution
         # and the corresponding source term and boundary data
-        manu_sol = sin(x*y)*(x+y)**4
+        manu_sol = x**3*y**2
         f = -((d*manu_sol.Diff(x)).Diff(x) + (d*manu_sol.Diff(y)).Diff(y))
         n = specialcf.normal(mesh.dim)
         du_nu = manu_sol.Diff(x)*n[0]+manu_sol.Diff(y)*n[1]

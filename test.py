@@ -47,7 +47,7 @@ poly_deg = 5
 is_adaptive = True
 
 # set up the error tolerance for mesh refinement
-tol = 1e-5
+tol = 1e-3
 
 # set up the parameter for pde
 d = 1
@@ -74,7 +74,7 @@ asymp_coeff_lst = []
 bc = {"d": {"bottom": 1}, "n": {"side": 0}, "r": {"top": 0}}
 
 # total number of lambda's with which we are going to solve the pde
-tot = 100
+tot = 5
 
 # solve the pde with lam = 0, 0.5*ell_p, ell_p, 1.5*ell_p, ..., 50*ell_p 
 for i in range(tot+1):
