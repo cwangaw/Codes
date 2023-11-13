@@ -158,6 +158,9 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
         l.Assemble()
 
         r = l.vec - a.mat * uh.vec
+        
+        # preconditioner
+        c.Update()
         inv = CGSolver(a.mat, c.mat)
         uh.vec.data += inv * r
         
