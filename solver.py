@@ -19,6 +19,9 @@ import numpy as np
 # set up the number of threads to use with TaskManager()
 SetNumThreads(32)
 
+# set up the msg print level
+ngsglobals.msg_level=0
+
 def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 1e-5, max_it = 50, mesh_it = 0, outdir = 'results'):
     '''
     Input:
@@ -121,7 +124,7 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
     # solution
     uh = GridFunction(fes, autoupdate=True)  
     #c = Preconditioner(a, "h1amg") # Register c to a BEFORE assembly
-    c = MultiGridPreconditioner(a, inverse = "sparsecholesky")
+    #c = MultiGridPreconditioner(a, inverse = "sparsecholesky")
     # save current mesh
     outmeshdir = outdir+"/mesh"
     if not os.path.exists(outmeshdir):
@@ -160,11 +163,11 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
         r = l.vec - a.mat * uh.vec
         
         # preconditioner
-        c.Update()
-        inv = CGSolver(a.mat, c.mat)
-        uh.vec.data += inv * r
+        #c.Update()
+        #inv = CGSolver(a.mat, c.mat)
+        #uh.vec.data += inv * r
         
-        #uh.vec.data += a.mat.Inverse(fes.FreeDofs(), inverse="sparsecholesky") * r
+        uh.vec.data += a.mat.Inverse(fes.FreeDofs(), inverse="sparsecholesky") * r
            
     errs = []
     runtimes = []
