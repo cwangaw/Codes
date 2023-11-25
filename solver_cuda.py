@@ -22,9 +22,6 @@ except:
     print ("no CUDA library or device available, using replacement types on host")
 ngsglobals.msg_level=0
 
-# set up the number of threads to use with TaskManager()
-SetNumThreads(24)
-
 def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 1e-5, max_it = 50, mesh_it = 0, outdir = 'results'):
     '''
     Input:
