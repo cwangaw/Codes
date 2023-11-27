@@ -38,7 +38,7 @@ if bool_savesolution == True:
         os.makedirs(outdir + '/femsol')
 
 # ask user to input the parameter for refining the fractal structure
-fractal_level = int(input("Enter the number of refinement steps for the pre-fractal upper boundary: "))
+fractal_level = 4 #int(input("Enter the number of refinement steps for the pre-fractal upper boundary: "))
 
 # set up the order of Lagrangian finite element
 poly_deg = 5
