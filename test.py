@@ -106,16 +106,16 @@ for i in range(len(lam_lst)):
 #Draw(uh)
 
 # plot the log scaled total flux through the top edge vs d*ell_p/lam
-plt.xlabel("$\Lambda/L_p$")
-plt.loglog([x/ell_p for x in lam_lst], flux_top_lst, "*-", label="Total flux through the top face")
-plt.loglog([x/ell_p for x in lam_lst], asymp_coeff_lst, "*-", color = 'r', label="$d*L_p/\Lambda$")
-leg = plt.legend(loc='upper center')
-plt.title('Log scaled, level of refinement = ' + str(fractal_level), style='italic')
-plt.ion()
+#plt.xlabel("$\Lambda/L_p$")
+#plt.loglog([x/ell_p for x in lam_lst], flux_top_lst, "*-", label="Total flux through the top face")
+#plt.loglog([x/ell_p for x in lam_lst], asymp_coeff_lst, "*-", color = 'r', label="$d*L_p/\Lambda$")
+#leg = plt.legend(loc='upper center')
+#plt.title('Log scaled, level of refinement = ' + str(fractal_level), style='italic')
+#plt.ion()
 #plt.show()
-plt.savefig(outdir+"/flux_plot.pdf")
+#plt.savefig(outdir+"/flux_plot.pdf")
 
-input("<Press enter to quit>")
+#input("<Press enter to quit>")
 
 # save results in a csv file
 with open(outdir+'/results.csv', 'w', newline='') as file:
