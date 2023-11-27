@@ -1,4 +1,4 @@
-from solver_cuda import *
+from solver_jac import *
 from utilities import *
 from ngsolve import *
 import matplotlib.pyplot as plt
@@ -53,10 +53,15 @@ tol = 1e-3
 d = 1
 
 # set up max number of iteration
-max_it = 1
+max_it = 5
 
 # mesh generation
-(mesh, ell_e, ell_p) = MakeCSGeometry(fractal_level)
+if fractal_level == 4:
+    mesh = Mesh("mesh_3d/frac4.vol")
+    ell_e = 1/9**4
+    ell_p = (13/9)**4
+else:
+    (mesh, ell_e, ell_p) = MakeCSGeometry(fractal_level)
 
 with open(outdir+'/misc.txt', 'a') as misc:
     misc.write('Solving the Robin bc on a fractal boundary problem' + '\n')
@@ -74,9 +79,10 @@ asymp_coeff_lst = []
 bc = {"d": {"bottom": 1}, "n": {"side": 0}, "r": {"top": 0}}
 
 # total number of lambda's with which we are going to solve the pde
-#lam_lst = np.array([ell_p**n for n in range(-11, 12)])
-lam_lst = np.array([ell_p**n for n in range(-11, -10)])
+#lam_lst = np.array([ell_p**n for n in range(-20, -9)])
+lam_lst = np.array([ell_p**n for n in range(-11, 12)])
 runtimes_lst = []
+
 # solve the pde with lam = 0, 0.5*ell_p, ell_p, 1.5*ell_p, ..., 50*ell_p 
 for i in range(len(lam_lst)):
     lam = lam_lst[i]
