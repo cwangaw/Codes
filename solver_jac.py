@@ -1,4 +1,4 @@
-import netgen.gui
+#import netgen.gui
 import matplotlib.pyplot as plt
 import os, sys
 import csv
@@ -10,7 +10,7 @@ from ngsolve import *
 from netgen.geom2d import SplineGeometry
 from netgen.meshing import MeshingStep
 from netgen.occ import *
-from netgen.webgui import Draw as DrawGeo
+#from netgen.webgui import Draw as DrawGeo
 
 from ngsolve import *
 from netgen.occ import unit_square
@@ -396,7 +396,7 @@ def MakeCSGeometry(fractal_level, h_max = 0.2):
             cube.faces[i].name = 'top'
     
     cube = Fractal3DStructure(cube, Vec(0,0,1), Vec(0,1,0), Vec(1,0,0), Vec(0,0,1), fractal_level)
-    DrawGeo(cube)
+    #DrawGeo(cube)
     geo = OCCGeometry(cube)
     mesh = Mesh(geo.GenerateMesh(maxh = h_max))
     

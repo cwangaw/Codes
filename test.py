@@ -103,7 +103,7 @@ for i in range(len(lam_lst)):
     asymp_coeff_lst.append(d*ell_p/lam)
 
 # Draw uh
-Draw(uh)
+#Draw(uh)
 
 # plot the log scaled total flux through the top edge vs d*ell_p/lam
 plt.xlabel("$\Lambda/L_p$")
@@ -112,7 +112,7 @@ plt.loglog([x/ell_p for x in lam_lst], asymp_coeff_lst, "*-", color = 'r', label
 leg = plt.legend(loc='upper center')
 plt.title('Log scaled, level of refinement = ' + str(fractal_level), style='italic')
 plt.ion()
-plt.show()
+#plt.show()
 plt.savefig(outdir+"/flux_plot.pdf")
 
 input("<Press enter to quit>")
