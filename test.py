@@ -50,7 +50,7 @@ is_adaptive = True
 tol = 1e-3
 
 # set up the parameter for pde
-d = 1
+d = 100
 
 # set up max number of iteration
 max_it = 2
