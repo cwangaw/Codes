@@ -4,6 +4,7 @@
 #SBATCH --mem=10g
 #SBATCH --tmp=10g
 #SBATCH --mail-type=ALL
+#SBATCH --mail-user=wan01937@umn.edu 
 cd ~/Workspace/frac
 module load python3
-python3 test.py
+python3 test.py &> out.txt
