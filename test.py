@@ -53,7 +53,7 @@ tol = 1e-3
 d = 1
 
 # set up max number of iteration
-max_it = 5
+max_it = 2
 
 # mesh generation
 if fractal_level == 4:
