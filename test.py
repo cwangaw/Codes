@@ -23,6 +23,16 @@ import matplotlib.pyplot as plt
     Note: if lam = 0, the boundary condition on the top is Dirichlet, not Robin   
 '''
 
+# read lam_lst
+lamoverlp_lst = []
+flux_top_4_lst = []
+
+with open('results/whole_scale_frac4_d1/results.csv', mode ='r')as file:
+  csvFile = list(csv.reader(file))
+  for lines in csvFile[1:]:
+        lamoverlp_lst.append(float(lines[1]))
+        flux_top_4_lst.append(float(lines[2]))
+
 # generate directory to save the results from this run
 resultsdir='results'
 if not os.path.exists(resultsdir):
@@ -38,7 +48,7 @@ if bool_savesolution == True:
         os.makedirs(outdir + '/femsol')
 
 # ask user to input the parameter for refining the fractal structure
-fractal_level = 4 #int(input("Enter the number of refinement steps for the pre-fractal upper boundary: "))
+fractal_level = 3 #int(input("Enter the number of refinement steps for the pre-fractal upper boundary: "))
 
 # set up the order of Lagrangian finite element
 poly_deg = 5
@@ -50,10 +60,10 @@ is_adaptive = True
 tol = 1e-3
 
 # set up the parameter for pde
-d = 100
+d = 1
 
 # set up max number of iteration
-max_it = 2
+max_it = 5
 
 # mesh generation
 if fractal_level == 4:
@@ -79,8 +89,9 @@ asymp_coeff_lst = []
 bc = {"d": {"bottom": 1}, "n": {"side": 0}, "r": {"top": 0}}
 
 # total number of lambda's with which we are going to solve the pde
-#lam_lst = np.array([ell_p**n for n in range(-20, -9)])
-lam_lst = np.array([ell_p**n for n in range(-11, 12)])
+#lam_lst = np.array([10**n for n in range(-15, -1)])
+#lam_lst = np.array([ell_p**n for n in range(-11, 12)])
+lam_lst = np.array([ell_p*coef for coef in lamoverlp_lst])
 runtimes_lst = []
 
 # solve the pde with lam = 0, 0.5*ell_p, ell_p, 1.5*ell_p, ..., 50*ell_p 
@@ -103,23 +114,26 @@ for i in range(len(lam_lst)):
     asymp_coeff_lst.append(d*ell_p/lam)
 
 # Draw uh
-#Draw(uh)
+Draw(uh)
 
 # plot the log scaled total flux through the top edge vs d*ell_p/lam
-#plt.xlabel("$\Lambda/L_p$")
-#plt.loglog([x/ell_p for x in lam_lst], flux_top_lst, "*-", label="Total flux through the top face")
-#plt.loglog([x/ell_p for x in lam_lst], asymp_coeff_lst, "*-", color = 'r', label="$d*L_p/\Lambda$")
-#leg = plt.legend(loc='upper center')
-#plt.title('Log scaled, level of refinement = ' + str(fractal_level), style='italic')
+plt.xlabel("$\Lambda/L_p$")
+#plt.xlabel("$1/\Lambda$")
+#plt.loglog([1/x for x in lam_lst], flux_top_lst, "*-", label="Total flux through the top face")
+plt.loglog([x/ell_p for x in lam_lst], flux_top_lst, "*-", label="Total flux through the top face")
+plt.loglog([x/ell_p for x in lam_lst], flux_top_4_lst, "*-", color = 'g', label="$Total flux, 4th level refinement$")
+plt.loglog([x/ell_p for x in lam_lst], asymp_coeff_lst, "*-", color = 'r', label="$d*L_p/\Lambda$")
+leg = plt.legend(loc='upper center')
+plt.title('Log scaled, level of refinement = ' + str(fractal_level), style='italic')
 #plt.ion()
 #plt.show()
-#plt.savefig(outdir+"/flux_plot.pdf")
+plt.savefig(outdir+"/flux_plot.pdf")
 
 #input("<Press enter to quit>")
 
 # save results in a csv file
 with open(outdir+'/results.csv', 'w', newline='') as file:
     writer = csv.writer(file)
-    writer.writerow(["Lambda", "Lambda/L_p", "flux Phi", "asymptotic coefficient","runtimes"])
+    writer.writerow(["Lambda", "Lambda/L_p", "flux Phi", "flux Phi for 4th level refinement", "asymptotic coefficient","runtimes"])
     for i in range(len(lam_lst)):
-        writer.writerow([lam_lst[i], lam_lst[i]/ell_p, flux_top_lst[i], asymp_coeff_lst[i], runtimes_lst[i]])
+        writer.writerow([lam_lst[i], lam_lst[i]/ell_p, flux_top_lst[i], flux_top_4_lst[i], asymp_coeff_lst[i], runtimes_lst[i]])
