@@ -1,7 +1,7 @@
 from solver_jac import *
 from utilities import *
 from ngsolve import *
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 '''
     The boundary value problem is - div (d grad u) = 0 on \Omega,
@@ -117,17 +117,17 @@ for i in range(len(lam_lst)):
 #Draw(uh)
 
 # plot the log scaled total flux through the top edge vs d*ell_p/lam
-plt.xlabel("$\Lambda/L_p$")
+#plt.xlabel("$\Lambda/L_p$")
 #plt.xlabel("$1/\Lambda$")
 #plt.loglog([1/x for x in lam_lst], flux_top_lst, "*-", label="Total flux through the top face")
-plt.loglog([x/ell_p for x in lam_lst], flux_top_lst, "*-", label="Total flux through the top face")
-plt.loglog([x/ell_p for x in lam_lst], flux_top_4_lst, "*-", color = 'g', label="$Total flux, 4th level refinement$")
-plt.loglog([x/ell_p for x in lam_lst], asymp_coeff_lst, "*-", color = 'r', label="$d*L_p/\Lambda$")
-leg = plt.legend(loc='upper center')
-plt.title('Log scaled, level of refinement = ' + str(fractal_level), style='italic')
+#plt.loglog([x/ell_p for x in lam_lst], flux_top_lst, "*-", label="Total flux through the top face")
+#plt.loglog([x/ell_p for x in lam_lst], flux_top_4_lst, "*-", color = 'g', label="$Total flux, 4th level refinement$")
+#plt.loglog([x/ell_p for x in lam_lst], asymp_coeff_lst, "*-", color = 'r', label="$d*L_p/\Lambda$")
+#leg = plt.legend(loc='upper center')
+#plt.title('Log scaled, level of refinement = ' + str(fractal_level), style='italic')
 #plt.ion()
 #plt.show()
-plt.savefig(outdir+"/flux_plot.pdf")
+#plt.savefig(outdir+"/flux_plot.pdf")
 
 #input("<Press enter to quit>")
 
