@@ -114,7 +114,7 @@ for i in range(len(lam_lst)):
     asymp_coeff_lst.append(d*ell_p/lam)
 
 # Draw uh
-Draw(uh)
+#Draw(uh)
 
 # plot the log scaled total flux through the top edge vs d*ell_p/lam
 plt.xlabel("$\Lambda/L_p$")
