@@ -53,7 +53,7 @@ tol = 1e-5
 d = 1
 
 # set up max number of iteration
-max_it = 3
+max_it = 5
 
 # mesh generation
 (mesh, ell_e, ell_p) = MakeGeometry(fractal_level)
@@ -72,12 +72,11 @@ asymp_coeff_lst = []
 # set up boundary conditions
 bc = {"d": {"bottom": 1}, "n": {"right": 0, "left":0}, "r": {"top": 0}}
 
-# total number of lambda's with which we are going to solve the pde
-tot = int(ceil(ell_p/ell_e))
+lam_lst = np.array([ell_p*exp(n/2) for n in range(-20, 21)])
 
 # solve the pde with lam = 0, 0.5*ell_p, ell_p, 1.5*ell_p, ..., 50*ell_p 
-for i in range(tot+1):
-    lam = i*(1/tot)*ell_p/20
+for i in range(len(lam_lst)):
+    lam = lam_lst[i]
     if max_it > 0:
         (mesh, _, _) = MakeGeometry(fractal_level)
     (uh, flux_top, _, _, mesh_it) = SolvePoisson(mesh, bc, poly_deg, d, lam, 0, is_adaptive, tol, max_it, mesh_it, outdir)
@@ -85,7 +84,7 @@ for i in range(tot+1):
     if bool_savesolution==True:
         if i==0:
             vtkout = VTKOutput(mesh,coefs=[uh],names=["sol"],filename=savename,subdivision=2)
-        vtkout.Do(time = i/tot)
+        vtkout.Do(time = i/(len(lam_lst)-1))
     
     lam_lst.append(lam)
     flux_top_lst.append(flux_top)
@@ -96,9 +95,11 @@ for i in range(tot+1):
 Draw(uh)
 
 # plot the log scaled total flux through the top edge vs d*ell_p/lam
-plt.xlabel("$\Lambda/L_p$")
-plt.loglog([x/ell_p for x in lam_lst], flux_top_lst, "*-", label="Total flux through the top edge")
-plt.loglog([x/ell_p for x in lam_lst[1:]], asymp_coeff_lst, "*-", color = 'r', label="$d*L_p/\Lambda$")
+plt.xlabel("$\Lambda$")
+#plt.xlabel("$1/\Lambda$")
+plt.loglog([x for x in lam_lst[1:]], [1/flux-1/flux_top_lst[0] for flux in flux_top_lst[1:]], "*-", label="1/flux-1/flux_top_lst[0]")
+#plt.loglog([x/ell_p for x in lam_lst], flux_top_lst, "*-", label="Total flux through the top edge")
+#plt.loglog([x/ell_p for x in lam_lst[1:]], asymp_coeff_lst, "*-", color = 'r', label="$d*L_p/\Lambda$")
 leg = plt.legend(loc='upper center')
 plt.title('Log scaled, level of refinement = ' + str(fractal_level), style='italic')
 plt.ion()
