@@ -1,4 +1,4 @@
-#import netgen.gui
+import netgen.gui
 import matplotlib.pyplot as plt
 import os, sys
 import csv
@@ -10,7 +10,7 @@ from ngsolve import *
 from netgen.geom2d import SplineGeometry
 from netgen.meshing import MeshingStep
 from netgen.occ import *
-#from netgen.webgui import Draw as DrawGeo
+from netgen.webgui import Draw as DrawGeo
 
 from ngsolve import *
 from netgen.occ import unit_square
@@ -150,26 +150,11 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
             new_dirichlet_dict = {**bc["d"], **bc["r"]}
             uh.Set(mesh.BoundaryCF(new_dirichlet_dict), BND)
         
-        # solve the linear system 
-        #c.Update()
-        #solvers.BVP(bf=a, lf=l, gf=uh, pre=c)
-        
-        #c = Preconditioner(a, "multigrid") # Register c to a BEFORE assembly
-        #c = MultiGridPreconditioner(a, inverse = "sparsecholesky")
         # assemble the bilinear and the linear form
         a.Assemble()
         l.Assemble()
         jac = a.mat.CreateSmoother(fes.FreeDofs())
         r = l.vec - a.mat * uh.vec
-        
-        # preconditioner
-        #c.Update()
-        #inv = CGSolver(a.mat, c.mat)
-        #uh.vec.data += inv * r
-        #predev = pre.mat.CreateDeviceMatrix()
-
-        ldev = l.vec.CreateDeviceVector(copy=True)
-        uhdev = uh.vec.CreateDeviceVector(copy=True)
         
         inv = CGSolver(a.mat, jac, maxsteps=2000, printrates=False)   
         #inv = CGSolver(adev, predev, maxsteps=2000, printrates=False)
@@ -254,7 +239,9 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
     if has_robin:
         if lam > 0:
             # the flux through the robin boundaries equals to <(d/lam)*u>_("r")
-            flux_top = Integrate((d/lam)*uh, mesh, BND, definedon=mesh.Boundaries(robin_str))
+            flux_top = 0
+            for label in bc["r"].keys():
+                flux_top += Integrate((d/lam)*(-bc["r"][label]+uh), mesh, BND, definedon=mesh.Boundaries(robin_str))
         else:
             # the flux through the old robin boundaries is <-d*du/dn>_(old_robin)
             n = specialcf.normal(mesh.dim)
@@ -270,7 +257,7 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
                 gradu2 = GridFunction(fes)
                 gradu0.Set(grad(uh)[0])
                 gradu1.Set(grad(uh)[1])
-                gradu2.Set(grad(uh)[1])
+                gradu2.Set(grad(uh)[2])
                 flux_top = Integrate(-d*(gradu0*n[0]+gradu1*n[1]+gradu2*n[2]), mesh, BND, definedon=mesh.Boundaries(robin_str))                
     else:
         flux_top = 0
@@ -396,7 +383,7 @@ def MakeCSGeometry(fractal_level, h_max = 0.2):
             cube.faces[i].name = 'top'
     
     cube = Fractal3DStructure(cube, Vec(0,0,1), Vec(0,1,0), Vec(1,0,0), Vec(0,0,1), fractal_level)
-    #DrawGeo(cube)
+    DrawGeo(cube)
     geo = OCCGeometry(cube)
     mesh = Mesh(geo.GenerateMesh(maxh = h_max))
     
@@ -422,7 +409,7 @@ if __name__ == "__main__":
             os.makedirs(outdir + '/femsol')
     
     # set up the order of Lagrangian finite element
-    poly_deg = 2
+    poly_deg = 5
     
     # set up the desired tolerance for the parameter eta in mesh refinment
     tol = 1e-6
@@ -491,12 +478,11 @@ if __name__ == "__main__":
             misc.write("Testing the Robin bc on a fractal boundary problem with lam = " + str(sys.argv[2]) + "\n")
             
         d = 1
-        fractal_level = 2 
+        fractal_level = 1 
         f = 0
         lam = float(sys.argv[2])
         
         (mesh, ell_e, ell_p) = MakeCSGeometry(fractal_level)
-        lam = ell_p
         
         # set up boundary conditions
         bc = {"d": {"bottom": 1}, "n": {"side": 0}, "r": {"top": 0}}
@@ -525,12 +511,12 @@ if __name__ == "__main__":
         # mesh generation
         (mesh, ell_e, ell_p) = MakeCSGeometry(fractal_level)
         # set up parameters for the pde
-        d = 2.56
-        lam = ell_p
+        d = 1
+        lam = 1e-4
 
         # set up manufactured solution
         # and the corresponding source term and boundary data
-        manu_sol = x**3*y*z
+        manu_sol = ((x-2/3)**2+(y-2/3)**2+(z-1)**2)**(1/3.)
         f = -((d*manu_sol.Diff(x)).Diff(x) + (d*manu_sol.Diff(y)).Diff(y) + (d*manu_sol.Diff(z)).Diff(z))
         n = specialcf.normal(mesh.dim)
         du_nu = manu_sol.Diff(x)*n[0]+manu_sol.Diff(y)*n[1]+manu_sol.Diff(z)*n[2]
@@ -545,7 +531,7 @@ if __name__ == "__main__":
         errs_lst = []
         runtimes_lst = []
         is_adaptive = [False, True]
-        max_it = [4, 4]
+        max_it = [3, 5]
         for i in range(2):
             # initialize a new mesh, on which we solve the pde
             (mesh, _, _) = MakeCSGeometry(fractal_level)
@@ -559,9 +545,13 @@ if __name__ == "__main__":
             e = Integrate((uh-manu_sol)**2, mesh, VOL)
             e = sqrt(e)
             
+            # the flux through the robin boundaries equals to <(d/lam)*u>_("r")
+            real_flux_top = Integrate((d/lam)*(-g_t+manu_sol), mesh, BND, definedon=mesh.Boundaries("top"))
+            real_flux_top_2 = Integrate(-d*du_nu, mesh, BND, definedon=mesh.Boundaries("top"))
+
             # append the results into the file
-            result.write("Adaptivity: " + str(is_adaptive[i]) + ", Solving time: " + str(runtimes[-1]) + ", nDoFs:" + str(errs[-1][0]) + ", Error:" + str(e) + '\n')
-    
+            result.write("Adaptivity: " + str(is_adaptive[i]) + ", Solving time: " + str(runtimes[-1]) + ", nDoFs:" + str(errs[-1][0]) + ", Error:" + str(e)  + ", uh flux top:" + str(real_flux_top) + ", duh flux top 2:" + str(real_flux_top_2) + '\n')
+ 
         result.close()       
     else:
         # write down the test
@@ -569,17 +559,17 @@ if __name__ == "__main__":
             misc.write("Testing the Robin bc on a fractal boundary problem with a manufactured solution" + "\n")
 
         # set up the parameter for refining the fractal structure
-        fractal_level = 3
+        fractal_level = 1
         
         # mesh generation
         (mesh, ell_e, ell_p) = MakeGeometry(fractal_level)
         # set up parameters for the pde
-        d = 2.56
-        lam = ell_p
+        d = 1
+        lam = 1e-5
 
         # set up manufactured solution
         # and the corresponding source term and boundary data
-        manu_sol = x**3*y**2
+        manu_sol = ((x-2/3)**2+(y-1)**2)**(1/3.)*sin(2./3.*atan2(y-1,-(x-2/3)))
         f = -((d*manu_sol.Diff(x)).Diff(x) + (d*manu_sol.Diff(y)).Diff(y))
         n = specialcf.normal(mesh.dim)
         du_nu = manu_sol.Diff(x)*n[0]+manu_sol.Diff(y)*n[1]
@@ -600,8 +590,8 @@ if __name__ == "__main__":
             # initialize a new mesh, on which we solve the pde
             (mesh, _, _) = MakeGeometry(fractal_level)
             (uh, flux, runtimes, errs, mesh_it) = SolvePoisson(mesh, bc, poly_deg, d, lam, f, is_adaptive[i], tol, max_it[i], mesh_it, outdir)
-            if bool_savesolution == True:
-                savesolution(mesh, uh, savename+str(int(is_adaptive[i])))
+            #if bool_savesolution == True:
+            #    savesolution(mesh, uh, savename+str(int(is_adaptive[i])))
             errs_lst.append(errs)
             runtimes_lst.append(runtimes)
             
@@ -609,8 +599,12 @@ if __name__ == "__main__":
             e = Integrate((uh-manu_sol)**2, mesh, VOL)
             e = sqrt(e)
             
+            # the flux through the robin boundaries equals to <(d/lam)*u>_("r")
+            real_flux_top = Integrate((d/lam)*(-g_t+manu_sol), mesh, BND, definedon=mesh.Boundaries("top"))
+            real_flux_top_2 = Integrate(-d*du_nu, mesh, BND, definedon=mesh.Boundaries("top"))
+
             # append the results into the file
-            result.write("Adaptivity: " + str(is_adaptive[i]) + ", Solving time: " + str(runtimes[-1]) + ", nDoFs:" + str(errs[-1][0]) + ", Error:" + str(e) + '\n')
+            result.write("Adaptivity: " + str(is_adaptive[i]) + ", Solving time: " + str(runtimes[-1]) + ", nDoFs:" + str(errs[-1][0]) + ", Error:" + str(e)  + ", uh flux top:" + str(real_flux_top) + ", duh flux top 2:" + str(real_flux_top_2) + '\n')
     
         result.close()
     
