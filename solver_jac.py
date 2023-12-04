@@ -22,7 +22,7 @@ import numpy as np
 # set up the msg print level
 ngsglobals.msg_level=0
 
-def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 1e-5, max_it = 50, mesh_it = 0, outdir = 'results'):
+def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, use_uh = True, tol = 1e-5, max_it = 50, mesh_it = 0, outdir = 'results'):
     '''
     Input:
         mesh:           ngsolve mesh of the unit square without requiring the top edge to be straight
@@ -237,7 +237,7 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, tol = 
                     misc.write(warningmsg)
     
     if has_robin:
-        if lam > 0:
+        if use_uh == True and lam > 0:
             # the flux through the robin boundaries equals to <(d/lam)*u>_("r")
             flux_top = 0
             for label in bc["r"].keys():
@@ -449,12 +449,11 @@ if __name__ == "__main__":
             misc.write("Testing the Robin bc on a fractal boundary problem with lam = " + str(sys.argv[2]) + "\n")
             
         d = 1
-        fractal_level = 3
+        fractal_level = 2
         f = 0
         lam = float(sys.argv[2])
         
         (mesh, ell_e, ell_p) = MakeGeometry(fractal_level)
-        lam = ell_p
         
         # set up boundary conditions
         bc = {"d": {"bottom": 1}, "n": {"right": 0, "left": 0}, "r": {"top": 0}}
@@ -462,7 +461,7 @@ if __name__ == "__main__":
         errs_lst = []
         runtimes_lst = []
         is_adaptive = [False, True]
-        max_it = [5, 10]
+        max_it = [5, 20]
         for i in range(2):
             # initialize a new mesh, on which we solve the pde
             (mesh, _, _) = MakeGeometry(fractal_level)

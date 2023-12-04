@@ -53,7 +53,7 @@ tol = 1e-5
 d = 1
 
 # set up max number of iteration
-max_it = 5
+max_it = 20
 
 # mesh generation
 (mesh, ell_e, ell_p) = MakeGeometry(fractal_level)
@@ -72,13 +72,14 @@ asymp_coeff_lst = []
 bc = {"d": {"bottom": 1}, "n": {"right": 0, "left":0}, "r": {"top": 0}}
 
 lam_lst = np.array([ell_p*exp(n/2) for n in range(-20, 21)])
-
+use_uh_lst = [True for i in range(len(lam_lst))]
+    
 # solve the pde with lam = 0, 0.5*ell_p, ell_p, 1.5*ell_p, ..., 50*ell_p 
 for i in range(len(lam_lst)):
     lam = lam_lst[i]
     if max_it > 0:
         (mesh, _, _) = MakeGeometry(fractal_level)
-    (uh, flux_top, _, _, mesh_it) = SolvePoisson(mesh, bc, poly_deg, d, lam, 0, is_adaptive, tol, max_it, mesh_it, outdir)
+    (uh, flux_top, _, _, mesh_it) = SolvePoisson(mesh, bc, poly_deg, d, lam, 0, is_adaptive, use_uh_lst[i], tol, max_it, mesh_it, outdir)
     
     if bool_savesolution==True:
         if i==0:
@@ -110,6 +111,5 @@ input("<Press enter to quit>")
 with open(outdir+'/results.csv', 'w', newline='') as file:
     writer = csv.writer(file)
     writer.writerow(["Lambda", "Lambda/L_p", "flux Phi", "asymptotic coefficient"])
-    writer.writerow([lam_lst[0], lam_lst[0]/ell_p, flux_top_lst[0], "nan"])
-    for i in range(1,len(lam_lst)):
-        writer.writerow([lam_lst[i], lam_lst[i]/ell_p, flux_top_lst[i], asymp_coeff_lst[i-1]])
+    for i in range(0,len(lam_lst)):
+        writer.writerow([lam_lst[i], lam_lst[i]/ell_p, flux_top_lst[i], asymp_coeff_lst[i]])
