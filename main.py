@@ -65,7 +65,6 @@ with open(outdir+'/misc.txt', 'a') as misc:
     misc.write('L_p: ' + str(ell_p) + '\n')
     
 # initialize lists to store lam, total flux through the top edge, and d*ell_p/lam for each run
-lam_lst = []
 flux_top_lst = []
 asymp_coeff_lst = []
 
@@ -86,7 +85,6 @@ for i in range(len(lam_lst)):
             vtkout = VTKOutput(mesh,coefs=[uh],names=["sol"],filename=savename,subdivision=2)
         vtkout.Do(time = i/(len(lam_lst)-1))
     
-    lam_lst.append(lam)
     flux_top_lst.append(flux_top)
     if i > 0:
         asymp_coeff_lst.append(d*ell_p/lam)
