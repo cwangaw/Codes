@@ -1,4 +1,4 @@
-from solver import *
+from solver_jac import *
 from utilities import *
 from ngsolve import *
 import matplotlib.pyplot as plt
