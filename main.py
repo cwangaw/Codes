@@ -90,7 +90,7 @@ bc = {"d": {"bottom": 1}, "n": {"right": 0, "left":0}, "r": {"top": 0}}
 
 #factor = (ell_p/ell_e)**(0.1)
 #lam_lst = np.array([ell_e*exp(n/2) for n in range(-10, 1)] + [ell_e*(factor**n) for n in range(0,10)] + [ell_p**n for n in range(1,11)])
-lam_lst = [0.01]
+lam_lst = [sqrt(10)**(-10)]
 
 use_uh_lst = [True for i in range(len(lam_lst))]
     
@@ -123,7 +123,9 @@ for i in range(len(lam_lst)):
                 writer.writerow([p, eval])
                
         # plot the arc length for the lambda
-        plt.figure(figsize=(20, 5)) 
+        plt.figure(figsize=(20, 5))
+        ax = plt.gca()
+        ax.set_ylim([0, 1+1e-5])
         plt.xlabel("arc length")
         plt.ylabel("$u_h$")
         plt.plot(x_lst,val_lst, '*-')

@@ -153,13 +153,14 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, use_uh
         # assemble the bilinear and the linear form
         a.Assemble()
         l.Assemble()
-        jac = a.mat.CreateSmoother(fes.FreeDofs())
+        #jac = a.mat.CreateSmoother(fes.FreeDofs())
         r = l.vec - a.mat * uh.vec
         
-        inv = CGSolver(a.mat, jac, maxsteps=2000, printrates=False)   
+        #inv = CGSolver(a.mat, jac, maxsteps=3000, printrates=False)   
         #inv = CGSolver(adev, predev, maxsteps=2000, printrates=False)
         
-        uh.vec.data += inv * r
+        #uh.vec.data += inv * r
+        uh.vec.data += a.mat.Inverse(fes.FreeDofs(), inverse="sparsecholesky") * r
            
     errs = []
     runtimes = []
@@ -183,7 +184,8 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, use_uh
         max_eta2 = max(eta2)
         sum_eta2 = sum(eta2)
         errs.append((fes.ndof, sqrt(sum_eta2)))
-
+        with open(outdir+'/misc.txt', 'a') as misc:
+            misc.write("H1 error estimator: " + str(sqrt(sum_eta2)) + "\n")
         # if we want to refine the mesh adaptively,
         # we label the elements in need of refinements here
         if bool_adaptive and it < max_it:
@@ -287,6 +289,41 @@ def FractalStructure(p_start, p_end, pnts, sgmnts, current_level):
         sgmnts = sgmnts + [(p_start, p_end)]
         
     return pnts, sgmnts
+
+# update the pnts list and sgmnts list
+def SqFractalStructure(p_start, p_end, pnts, sgmnts, current_level):
+    # if we have not yet reached the top level, add new points and new segments,
+    # otherwise we only add the segment connecting p_start and p_end
+    if (current_level > 0):
+        # define the 4 new points 
+        # add to pnts if is new
+        # otherwise, retrieve the index
+        p0 = ( pnts[p_start][0] + (pnts[p_end][0] - pnts[p_start][0]) * (1/3), pnts[p_start][1] + (pnts[p_end][1] - pnts[p_start][1]) * (1/3) )
+        p3 = ( pnts[p_start][0] + (pnts[p_end][0] - pnts[p_start][0]) * (2/3), pnts[p_start][1] + (pnts[p_end][1] - pnts[p_start][1]) * (2/3) )
+        p1 = ( p0[0] + (p3[1] - p0[1]), p0[1] - (p3[0] - p0[0]))
+        p2 = ( p1[0] + (p3[0] - p0[0]), p1[1] + (p3[1] - p0[1]))
+        
+        indices = []
+        for pt in [p0, p1, p2, p3]:
+            bool_exists = False
+            for i in range(len(pnts)):
+                if abs(pt[0]-pnts[i][0]) < 1e-12 and abs(pt[1]-pnts[i][1]) < 1e-12:
+                    bool_exists = True
+                    indices = indices + [i]
+            if bool_exists == False:
+                indices = indices + [len(pnts)]
+                pnts = pnts + [pt]
+                
+        
+        (pnts, sgmnts) = SqFractalStructure(p_start,indices[0],pnts,sgmnts,current_level-1)
+        (pnts, sgmnts) = SqFractalStructure(indices[0],indices[1],pnts,sgmnts,current_level-1)
+        (pnts, sgmnts) = SqFractalStructure(indices[1],indices[2],pnts,sgmnts,current_level-1)
+        (pnts, sgmnts) = SqFractalStructure(indices[2],indices[3],pnts,sgmnts,current_level-1)
+        (pnts, sgmnts) = SqFractalStructure(indices[3],p_end,pnts,sgmnts,current_level-1)
+    else:
+        sgmnts = sgmnts + [(p_start, p_end)]
+        
+    return pnts, sgmnts
     
 # make mesh of fractal domain
 def MakeGeometry(fractal_level, h_max = 0.2):
@@ -319,6 +356,37 @@ def MakeGeometry(fractal_level, h_max = 0.2):
     
     return mesh, ell_e, ell_p
 
+# make mesh of fractal domain
+def MakeSqGeometry(fractal_level, h_max = 0.2):
+    geo = SplineGeometry()
+    
+    # the four vertices of the square domian
+    pnts = [(0,0), (1,0), (1,1), (0,1)]
+    # the bottom, right, and left edges
+    sgmnts = [(0,1), (1,2), (3,0)]
+    
+    # add points and segments for the top fractal structure
+    (pnts, sgmnts) = SqFractalStructure(2,3,pnts,sgmnts,fractal_level)
+
+    for i in range(len(pnts)):
+        geo.AppendPoint (pnts[i][0], pnts[i][1])
+
+    geo.Append (["line", sgmnts[0][0], sgmnts[0][1]], bc="bottom")
+    geo.Append (["line", sgmnts[1][0], sgmnts[1][1]], bc="right")
+    geo.Append (["line", sgmnts[2][0], sgmnts[2][1]], bc="left")
+    
+    for i in range(3,len(sgmnts)):
+        geo.Append (["line", sgmnts[i][0], sgmnts[i][1]], bc="top")
+    # calculate ell_e = length of the shortest edge
+    #           ell_p = length (parimeter) of the fractal structure on the top
+    ell_e = 1/(3.0**fractal_level)
+    ell_p = (5.0/3.0)**fractal_level
+    
+    # mesh generation
+    mesh = Mesh(geo.GenerateMesh(maxh=h_max))
+    
+    return mesh, ell_e, ell_p
+
 def MakeLGeometry(h_max = 0.2):
     geo = SplineGeometry()
     
@@ -337,38 +405,90 @@ def MakeLGeometry(h_max = 0.2):
     
     return mesh
 
+# generate points on the top boundary with the distance of 
+# consecutive points as ell_e/nints_per_seg
+def eval_pts(fractal_level, nints_per_seg):
+    # the four vertices of the square domian
+    pnts = [(0,0), (1,0), (1,1), (0,1)]
+    sgmnts = []
+    
+    # add points and segments for the top fractal structure
+    (pnts, sgmnts) = FractalStructure(2,3,pnts,sgmnts,fractal_level)
+
+    # calculate ell_e = length of the shortest edge
+    #           ell_p = length (parimeter) of the fractal structure on the top
+    ell_e = 1 / (3.0**fractal_level)
+    
+    length_lst = [0]
+    pnts_lst = [(0,1)]
+    
+    current_length = 0
+    
+    for v in reversed(sgmnts):
+        for i in range(nints_per_seg):
+            current_length += ell_e / nints_per_seg
+            length_lst.append(current_length)
+            x_new = pnts_lst[-1][0] + (pnts[v[0]][0]-pnts[v[1]][0])/nints_per_seg
+            y_new = pnts_lst[-1][1] + (pnts[v[0]][1]-pnts[v[1]][1])/nints_per_seg
+            pnts_lst.append((x_new,y_new))
+        if (x_new >= 0.5):
+            break
+    
+    return length_lst, pnts_lst
+
 # first we define a function that will be called iteratively in MakeCSGeometry()
-def Fractal3DStructure(cube, p_min, vec1, vec2, vec3, current_level):
+def FractalStructure3D(cube, p_min, vec1, vec2, vec3, current_level):
     # p_min, vec1, vec2 provide a square surface on which we grow fractal structure of one lower level
     # p_min is a vector
     # starting from p_min, vec1 and vec2 forms a square surface with vec1 x vec2 pointing outward
     # vec3 is an outward-pointing vector
     # vec1, vec2, vec3 has length the same as the square
     
+    '''
     if current_level > 0:
         p_cand = [p_min+(1/3)*vec1+(1/3)*vec2+(1/3)*vec3, p_min+(2/3)*vec1+(2/3)*vec2-(1/30)*vec3]
         new_min = Pnt(min(p_cand[0].x,p_cand[1].x), min(p_cand[0].y,p_cand[1].y), min(p_cand[0].z,p_cand[1].z))
         new_max = Pnt(max(p_cand[0].x,p_cand[1].x), max(p_cand[0].y,p_cand[1].y), max(p_cand[0].z,p_cand[1].z))
         new_cube = Box(new_min, new_max)
         new_cube.bc("top")
-        '''        new_min = Pnt(min(p_cand[0][0],p_cand[1][0]), min(p_cand[0][1],p_cand[1][1]), min(p_cand[0][2],p_cand[1][2]))
-        new_max = Pnt(max(p_cand[0][0],p_cand[1][0]), max(p_cand[0][1],p_cand[1][1]), max(p_cand[0][2],p_cand[1][2]))'''
-        #new_cube = OrthoBrick(new_min, new_max)
         cube = cube + new_cube.bc("top")
     
     if current_level > 1:
         for i in range(3):
             for j in range(3):
                 if i==1 and j==1:
-                    cube = Fractal3DStructure(cube, p_min+(1/3)*vec1+(1/3)*vec2+(1/3)*vec3, (1/3)*vec1, (1/3)*vec2, (1/3)*vec3, current_level-1)
+                    cube = FractalStructure3D(cube, p_min+(1/3)*vec1+(1/3)*vec2+(1/3)*vec3, (1/3)*vec1, (1/3)*vec2, (1/3)*vec3, current_level-1)
                 else:
-                    cube = Fractal3DStructure(cube, p_min+(i/3)*vec1+(j/3)*vec2, (1/3)*vec1, (1/3)*vec2, (1/3)*vec3, current_level-1)
+                    cube = FractalStructure3D(cube, p_min+(i/3)*vec1+(j/3)*vec2, (1/3)*vec1, (1/3)*vec2, (1/3)*vec3, current_level-1)
         
         # add fractal structures on the four square surfaces surrounding the new cube
-        cube = Fractal3DStructure(cube, p_min+(1/3)*vec1+(1/3)*vec2, (1/3)*vec1, (1/3)*vec3, (-1/3)*vec2, current_level-1)
-        cube = Fractal3DStructure(cube, p_min+(1/3)*vec1+(2/3)*vec2, (-1/3)*vec2, (1/3)*vec3, (-1/3)*vec1, current_level-1)
-        cube = Fractal3DStructure(cube, p_min+(2/3)*vec1+(2/3)*vec2, (-1/3)*vec1, (1/3)*vec3, (1/3)*vec2, current_level-1)
-        cube = Fractal3DStructure(cube, p_min+(2/3)*vec1+(1/3)*vec2, (1/3)*vec2, (1/3)*vec3, (1/3)*vec1, current_level-1)
+        cube = FractalStructure3D(cube, p_min+(1/3)*vec1+(1/3)*vec2, (1/3)*vec1, (1/3)*vec3, (-1/3)*vec2, current_level-1)
+        cube = FractalStructure3D(cube, p_min+(1/3)*vec1+(2/3)*vec2, (-1/3)*vec2, (1/3)*vec3, (-1/3)*vec1, current_level-1)
+        cube = FractalStructure3D(cube, p_min+(2/3)*vec1+(2/3)*vec2, (-1/3)*vec1, (1/3)*vec3, (1/3)*vec2, current_level-1)
+        cube = FractalStructure3D(cube, p_min+(2/3)*vec1+(1/3)*vec2, (1/3)*vec2, (1/3)*vec3, (1/3)*vec1, current_level-1)    
+    
+    '''
+    if current_level > 0:
+        p_cand = [p_min+(1/2)*vec1+(1/2)*vec2+(1/4)*vec3, p_min+(3/4)*vec1+(3/4)*vec2-(1/30)*vec3]
+        new_min = Pnt(min(p_cand[0].x,p_cand[1].x), min(p_cand[0].y,p_cand[1].y), min(p_cand[0].z,p_cand[1].z))
+        new_max = Pnt(max(p_cand[0].x,p_cand[1].x), max(p_cand[0].y,p_cand[1].y), max(p_cand[0].z,p_cand[1].z))
+        new_cube = Box(new_min, new_max)
+        new_cube.bc("top")
+        cube = cube + new_cube.bc("top")
+    
+    if current_level > 1:
+        for i in range(4):
+            for j in range(4):
+                if i==2 and j==2:
+                    cube = FractalStructure3D(cube, p_min+(1/2)*vec1+(1/2)*vec2+(1/4)*vec3, (1/4)*vec1, (1/4)*vec2, (1/4)*vec3, current_level-1)
+                else:
+                    cube = FractalStructure3D(cube, p_min+(i/4)*vec1+(j/4)*vec2, (1/4)*vec1, (1/4)*vec2, (1/4)*vec3, current_level-1)
+        
+        # add fractal structures on the four square surfaces surrounding the new cube
+        cube = FractalStructure3D(cube, p_min+(1/2)*vec1+(1/2)*vec2, (1/4)*vec1, (1/4)*vec3, (-1/4)*vec2, current_level-1)
+        cube = FractalStructure3D(cube, p_min+(1/2)*vec1+(3/4)*vec2, (-1/4)*vec2, (1/4)*vec3, (-1/4)*vec1, current_level-1)
+        cube = FractalStructure3D(cube, p_min+(3/4)*vec1+(3/4)*vec2, (-1/4)*vec1, (1/4)*vec3, (1/4)*vec2, current_level-1)
+        cube = FractalStructure3D(cube, p_min+(3/4)*vec1+(1/2)*vec2, (1/4)*vec2, (1/4)*vec3, (1/4)*vec1, current_level-1)
     
     return cube
         
@@ -382,14 +502,14 @@ def MakeCSGeometry(fractal_level, h_max = 0.2):
         else:
             cube.faces[i].name = 'top'
     
-    cube = Fractal3DStructure(cube, Vec(0,0,1), Vec(0,1,0), Vec(1,0,0), Vec(0,0,1), fractal_level)
+    cube = FractalStructure3D(cube, Vec(0,0,1), Vec(1,0,0), Vec(0,1,0), Vec(0,0,1), fractal_level)
     DrawGeo(cube)
     geo = OCCGeometry(cube)
     mesh = Mesh(geo.GenerateMesh(maxh = h_max))
     
-    l = 1/9**fractal_level
-    L_p = (13/9)**fractal_level
-    return mesh,l,L_p
+    l = (1/16)**fractal_level
+    A_p = (5/4)**fractal_level
+    return mesh,l,A_p
     
     
 if __name__ == "__main__":
@@ -402,7 +522,7 @@ if __name__ == "__main__":
     mesh_it = 0
     os.makedirs(outmeshdir)
     
-    bool_savesolution = True
+    bool_savesolution = False
     savename = outdir + "/femsol/uh"
     if bool_savesolution== True:
         if not os.path.exists(outdir + '/femsol'):
@@ -412,7 +532,9 @@ if __name__ == "__main__":
     poly_deg = 5
     
     # set up the desired tolerance for the parameter eta in mesh refinment
-    tol = 1e-6
+    tol = 1e-7
+    
+    use_uh = True
     
     if len(sys.argv) > 1 and sys.argv[1] == "singular":
         # write down the test
@@ -437,7 +559,7 @@ if __name__ == "__main__":
             mesh = MakeLGeometry()
             
             # solve the pde
-            (uh, flux, runtimes, errs, mesh_it) = SolvePoisson(mesh, bc, poly_deg, d, lam, f, is_adaptive[i], tol, max_it[i], mesh_it, outdir)
+            (uh, flux, runtimes, errs, mesh_it) = SolvePoisson(mesh, bc, poly_deg, d, lam, f, is_adaptive[i], use_uh, tol, max_it[i], mesh_it, outdir)
             if bool_savesolution == True:
                 savesolution(mesh, uh, savename+str(int(is_adaptive[i])))
             errs_lst.append(errs)
@@ -449,7 +571,7 @@ if __name__ == "__main__":
             misc.write("Testing the Robin bc on a fractal boundary problem with lam = " + str(sys.argv[2]) + "\n")
             
         d = 1
-        fractal_level = 2
+        fractal_level = 5
         f = 0
         lam = float(sys.argv[2])
         
@@ -461,11 +583,13 @@ if __name__ == "__main__":
         errs_lst = []
         runtimes_lst = []
         is_adaptive = [False, True]
-        max_it = [5, 20]
+        max_it = [0, 10]
+        use_uh = True
         for i in range(2):
             # initialize a new mesh, on which we solve the pde
-            (mesh, _, _) = MakeGeometry(fractal_level)
-            (uh, flux, runtimes, errs, mesh_it) = SolvePoisson(mesh, bc, poly_deg, d, lam, f, is_adaptive[i], tol, max_it[i], mesh_it, outdir)
+            if i > 0:
+                (mesh, _, _) = MakeGeometry(fractal_level)
+            (uh, flux, runtimes, errs, mesh_it) = SolvePoisson(mesh, bc, poly_deg, d, lam, f, is_adaptive[i], use_uh, tol, max_it[i], mesh_it, outdir)
             if bool_savesolution == True:
                 savesolution(mesh, uh, savename+str(int(is_adaptive[i])))
             errs_lst.append(errs)
@@ -489,11 +613,11 @@ if __name__ == "__main__":
         errs_lst = []
         runtimes_lst = []
         is_adaptive = [False, True]
-        max_it = [1, 10]
+        max_it = [0, 5]
         for i in range(2):
             # initialize a new mesh, on which we solve the pde
             (mesh, _, _) = MakeCSGeometry(fractal_level)
-            (uh, flux, runtimes, errs, mesh_it) = SolvePoisson(mesh, bc, poly_deg, d, lam, f, is_adaptive[i], tol, max_it[i], mesh_it, outdir)
+            (uh, flux, runtimes, errs, mesh_it) = SolvePoisson(mesh, bc, poly_deg, d, lam, f, is_adaptive[i], True, tol, max_it[i], mesh_it, outdir)
             #if bool_savesolution == True:
             #    savesolution(mesh, uh, savename+str(int(is_adaptive[i])))
             errs_lst.append(errs)
@@ -584,11 +708,11 @@ if __name__ == "__main__":
         errs_lst = []
         runtimes_lst = []
         is_adaptive = [False, True]
-        max_it = [5, 10]
+        max_it = [5, 100]
         for i in range(2):
             # initialize a new mesh, on which we solve the pde
             (mesh, _, _) = MakeGeometry(fractal_level)
-            (uh, flux, runtimes, errs, mesh_it) = SolvePoisson(mesh, bc, poly_deg, d, lam, f, is_adaptive[i], tol, max_it[i], mesh_it, outdir)
+            (uh, flux, runtimes, errs, mesh_it) = SolvePoisson(mesh, bc, poly_deg, d, lam, f, is_adaptive[i], use_uh, tol, max_it[i], mesh_it, outdir)
             #if bool_savesolution == True:
             #    savesolution(mesh, uh, savename+str(int(is_adaptive[i])))
             errs_lst.append(errs)
