@@ -53,7 +53,7 @@ poly_deg = 5
 is_adaptive = True
 
 # set up the error tolerance for mesh refinement
-tol = 5e-8
+tol = 1e-8
 
 # set up the parameter for pde
 d = 1
@@ -88,9 +88,11 @@ bc = {"d": {"bottom": 1}, "n": {"right": 0, "left":0}, "r": {"top": 0}}
 # lam greater than L_p
 #lam_lst = np.array([ell_p**n for n in range(1,11)])
 
-#factor = (ell_p/ell_e)**(0.1)
-#lam_lst = np.array([ell_e*exp(n/2) for n in range(-10, 1)] + [ell_e*(factor**n) for n in range(0,10)] + [ell_p**n for n in range(1,11)])
-lam_lst = [sqrt(10)**(-10)]
+length_inter = 40
+factor = (ell_p/ell_e)**(1/length_inter)
+lam_lst = np.array([ell_e*exp(n/4) for n in range(-28, 0)] + [ell_e*(factor**n) for n in range(length_inter)] + [ell_p**(n/4) for n in range(4,46)])
+#lam_lst = [ell_p**(n/2) for n in range(11,25)]
+#lam_lst = [ell_e*10**(-3), sqrt(ell_e*ell_p), ell_p*10**3]
 
 use_uh_lst = [True for i in range(len(lam_lst))]
     
@@ -99,7 +101,12 @@ for i in range(len(lam_lst)):
     lam = lam_lst[i]
     if max_it > 0 and i > 0:
         (mesh, _, _) = MakeGeometry(fractal_level)
-    (uh, flux_top, _, _, mesh_it) = SolvePoisson(mesh, bc, poly_deg, d, lam, 0, is_adaptive, use_uh_lst[i], tol, max_it, mesh_it, outdir)
+    
+    if lam < ell_e:
+        tol = 1e-9
+    else:
+        tol = 1e-8
+    (uh, fes, flux_top, _, _, mesh_it) = SolvePoisson(mesh, bc, poly_deg, d, lam, 0, is_adaptive, use_uh_lst[i], tol, max_it, mesh_it, outdir)
     
     if bool_savesolution==True:
         if i==0:
@@ -110,28 +117,80 @@ for i in range(len(lam_lst)):
     asymp_coeff_lst.append(d*ell_p/lam)
     
     if bool_savearclength == True:
-        if i == 0:
-            x_lst, pnts_lst = eval_pts(fractal_level, poly_deg)
+        length_and_eval = []
+        if fractal_level >= 1:
+            l, p = fractal_verts(fractal_level)
 
-        val_lst = []
-        iter = 0
-        with open(outdir+'/eval_'+str(lam)+'.csv', 'w', newline='') as file:    
-            for p in pnts_lst:
+            edge_id = -1
+
+            length_lst = []
+            eval_orig_lst = []
+            eval_lst = []
+
+            vert_lst = []
+
+            # make a list of vertices of interest
+            for el in fes.Elements(BND):
+                v = el.vertices[1]
+                x = mesh[v].point[0]
+                y = mesh[v].point[1]
+                if y < 1:
+                    continue
+                else:
+                    vert_lst.append((x,y))
+                    eval_orig_lst.append(uh.vec.data[fes.GetDofNrs(v)[0]])
+
+            ind_lst = list(range(len(vert_lst)))
+            vert_sort = [ [] for _ in range(len(p)-1) ]
+
+            # iterate through top edges
+            for top_edge_ind in range(len(p)-1):
+                for ind in ind_lst[:]:
+                    x = vert_lst[ind][0]
+                    y = vert_lst[ind][1]
+                    if abs(sqrt((x-p[top_edge_ind][0])**2+(y-p[top_edge_ind][1])**2) + sqrt((x-p[top_edge_ind+1][0])**2+(y-p[top_edge_ind+1][1])**2) - (1/3)**fractal_level) < 1e-10:
+                        vert_sort[top_edge_ind].append(ind)
+                        ind_lst.remove(ind)
+                        
+
+            for edge_id in range(len(p)-1):
+                for ind in vert_sort[edge_id]:
+                    length_lst.append(l[edge_id] - sqrt((vert_lst[ind][0]-p[edge_id][0])**2+(vert_lst[ind][1]-p[edge_id][1])**2))
+                    eval_lst.append(eval_orig_lst[ind])
+            
+            for ind in range(len(length_lst)):
+                length_and_eval.append((length_lst[ind],eval_lst[ind]))
+            length_and_eval.sort()
+        else:
+            if i == 0:
+                x_lst, pnts_lst = eval_pts(fractal_level, 10)
+
+            val_lst = []
+            iter = 0
+            for p_ind in range(len(pnts_lst)):
+                p = pnts_lst[p_ind]
                 eval = uh(mesh(p[0],p[1]))
-                val_lst.append(eval)
-                writer = csv.writer(file)
-                writer.writerow([p, eval])
+                length_and_eval.append((x_lst[p_ind],eval))
+               
+        
                
         # plot the arc length for the lambda
-        plt.figure(figsize=(20, 5))
+        plt.figure(figsize=(10,10))
         ax = plt.gca()
-        ax.set_ylim([0, 1+1e-5])
+        ax.set_ylim([0-1e-3, 1+1e-3])
         plt.xlabel("arc length")
         plt.ylabel("$u_h$")
-        plt.plot(x_lst,val_lst, '*-')
+        plt.plot(*zip(*length_and_eval), '-')
         plt.title("$\lambda$ = " + str(lam), style='italic')
         plt.savefig(outdir+"/arclength/"+str(i)+".pdf")
-        plt.close()
+        plt.close()        
+        
+        with open(outdir+'/arclength/'+str(i)+'.csv', 'w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow([lam])
+            for ind in range(0,len(length_and_eval)):
+                writer.writerow([length_and_eval[ind][0], length_and_eval[ind][1]]) #asymp_coeff_lst[i]])
+
 
 # Draw uh
 Draw(uh)

@@ -220,14 +220,14 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, use_uh
     # refine the mesh and solve the equation until the H1 error is within the tolerance
     # we note down the time after each time we run SolveBVP()
     with TaskManager():
-        mesh_it = SaveMesh(mesh_it)
+        #mesh_it = SaveMesh(mesh_it)
         SolveBVP()
         time_delta = datetime.datetime.now() - start
         runtimes.append(time_delta.total_seconds())
         it = 0
         while CalcError() > tol and it < max_it:
             mesh.Refine()
-            mesh_it = SaveMesh(mesh_it)
+            #mesh_it = SaveMesh(mesh_it)
             SolveBVP()
             time_delta = datetime.datetime.now() - start
             runtimes.append(time_delta.total_seconds())
@@ -243,7 +243,7 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, use_uh
             # the flux through the robin boundaries equals to <(d/lam)*u>_("r")
             flux_top = 0
             for label in bc["r"].keys():
-                flux_top += Integrate((d/lam)*(-bc["r"][label]+uh), mesh, BND, definedon=mesh.Boundaries(robin_str))
+                flux_top += Integrate((d/lam)*(-bc["r"][label]+uh), mesh, BND, definedon=mesh.Boundaries(label))
         else:
             # the flux through the old robin boundaries is <-d*du/dn>_(old_robin)
             n = specialcf.normal(mesh.dim)
@@ -266,7 +266,7 @@ def SolvePoisson(mesh, bc, deg=1, d=1, lam=1, f=0, bool_adaptive = False, use_uh
     
     with open(outdir+'/misc.txt', 'a') as misc:
         misc.write('flux through the robin boundaries: ' + str(flux_top) + '\n')
-    return uh, flux_top, runtimes, errs, mesh_it
+    return uh, fes, flux_top, runtimes, errs, mesh_it
 
 # update the pnts list and sgmnts list
 def FractalStructure(p_start, p_end, pnts, sgmnts, current_level):
@@ -431,8 +431,25 @@ def eval_pts(fractal_level, nints_per_seg):
             x_new = pnts_lst[-1][0] + (pnts[v[0]][0]-pnts[v[1]][0])/nints_per_seg
             y_new = pnts_lst[-1][1] + (pnts[v[0]][1]-pnts[v[1]][1])/nints_per_seg
             pnts_lst.append((x_new,y_new))
-        if (x_new >= 0.5):
-            break
+    
+    return length_lst, pnts_lst
+
+
+def fractal_verts(fractal_level):
+    # the four vertices of the square domian
+    pnts = [(0,0), (1,0), (1,1), (0,1)]
+    sgmnts = []
+    
+    # add points and segments for the top fractal structure
+    (pnts, sgmnts) = FractalStructure(2,3,pnts,sgmnts,fractal_level)
+
+    ell_e = 1 / (3.0**fractal_level)
+    
+    #counterclockwise
+    pnts_lst = [(1,1)]
+    for sgmnt in sgmnts:
+        pnts_lst.append(pnts[sgmnt[1]])
+    length_lst =[ell_e*n for n in range(4**fractal_level,-1,-1)]
     
     return length_lst, pnts_lst
 
