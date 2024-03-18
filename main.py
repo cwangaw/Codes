@@ -1,4 +1,4 @@
-from solver_jac import *
+from solver import *
 from utilities import *
 from ngsolve import *
 import matplotlib.pyplot as plt
@@ -62,7 +62,7 @@ d = 1
 max_it = 40
 
 # mesh generation
-(mesh, ell_e, ell_p) = MakeGeometry(fractal_level)
+(mesh, ell_e, ell_p) = MakeGeometry("2d", fractal_level)
 
 with open(outdir+'/misc.txt', 'a') as misc:
     misc.write('Solving the Robin bc on a fractal boundary problem' + '\n')
@@ -90,7 +90,9 @@ bc = {"d": {"bottom": 1}, "n": {"right": 0, "left":0}, "r": {"top": 0}}
 
 length_inter = 40
 factor = (ell_p/ell_e)**(1/length_inter)
-lam_lst = np.array([ell_e*exp(n/4) for n in range(-28, 0)] + [ell_e*(factor**n) for n in range(length_inter)] + [ell_p**(n/4) for n in range(4,46)])
+#lam_lst = np.array([ell_e*exp(n/4) for n in range(-28, 0)] + [ell_e*(factor**n) for n in range(length_inter)] + 
+lam_lst = [ell_e*(factor**n) for n in range(-101,0)] + [ell_e*(factor**n) for n in range(length_inter)] + [ell_p*(factor**n) for n in range(2*length_inter)]
+lam_lst = [ lam_lst[0] ]
 #lam_lst = [ell_p**(n/2) for n in range(11,25)]
 #lam_lst = [ell_e*10**(-3), sqrt(ell_e*ell_p), ell_p*10**3]
 
@@ -100,10 +102,10 @@ use_uh_lst = [True for i in range(len(lam_lst))]
 for i in range(len(lam_lst)):
     lam = lam_lst[i]
     if max_it > 0 and i > 0:
-        (mesh, _, _) = MakeGeometry(fractal_level)
+        (mesh, _, _) = MakeGeometry("2d", fractal_level)
     
     if lam < ell_e:
-        tol = 1e-9
+        tol = 5e-10
     else:
         tol = 1e-8
     (uh, fes, flux_top, _, _, mesh_it) = SolvePoisson(mesh, bc, poly_deg, d, lam, 0, is_adaptive, use_uh_lst[i], tol, max_it, mesh_it, outdir)
@@ -169,7 +171,10 @@ for i in range(len(lam_lst)):
             iter = 0
             for p_ind in range(len(pnts_lst)):
                 p = pnts_lst[p_ind]
-                eval = uh(mesh(p[0],p[1]))
+                eval = uh(mesh(p[0],p[1])) / (flux_top*lam/d)
+                print (uh(mesh(p[0],p[1])))
+                print (flux_top*lam)
+                print (eval)
                 length_and_eval.append((x_lst[p_ind],eval))
                
         
@@ -182,10 +187,10 @@ for i in range(len(lam_lst)):
         plt.ylabel("$u_h$")
         plt.plot(*zip(*length_and_eval), '-')
         plt.title("$\lambda$ = " + str(lam), style='italic')
-        plt.savefig(outdir+"/arclength/"+str(i)+".pdf")
+        plt.savefig(outdir+"/arclength/"+str(i+68)+".pdf")
         plt.close()        
         
-        with open(outdir+'/arclength/'+str(i)+'.csv', 'w', newline='') as file:
+        with open(outdir+'/arclength/'+str(i+68)+'.csv', 'w', newline='') as file:
             writer = csv.writer(file)
             writer.writerow([lam])
             for ind in range(0,len(length_and_eval)):

@@ -20,7 +20,7 @@ def makedir(resultsdir='results'):
         id += 1
     outdir = resultsdir + '/{:06d}'.format(id)
     os.mkdir(outdir)
-    print("*** created directory {} for output".format(outdir))
+    print("*** created directory {} for output ***".format(outdir))
     return outdir
 
 def savesolution(mesh, uh, savename):
@@ -30,7 +30,6 @@ def savesolution(mesh, uh, savename):
 def plot_coef(x, y, start, rounding = False):
     n = 10 #np.size(x)
     
-    # we exclude the first 1/4 data
     x = np.array(x)
     y = np.array(y)
 
@@ -44,12 +43,11 @@ def plot_coef(x, y, start, rounding = False):
     delta_y = exp(log(y.max()/y.min())/(n-1))
     mid_x = start[0]
     mid_y = start[1]
-    plt.loglog([mid_x,mid_x*delta_x,mid_x,mid_x], [mid_y,mid_y*exp(p1*log(delta_x)),mid_y*exp(p1*log(delta_x)),mid_y])
+    
     # label
-    if p1 < 0:
-        plt.text(mid_x*sqrt(delta_x),mid_y*sqrt(exp(p1*log(delta_x))), "{0:.2f}".format(p1), horizontalalignment='left')
-    else:
-        plt.text(mid_x*sqrt(delta_x),mid_y*sqrt(exp(p1*log(delta_x))), "{0:.2f}".format(p1), horizontalalignment='right')
+    plt.text(mid_x*delta_x**(5/8),mid_y*exp(p1*log(delta_x))**(1/4), "{0:.2f}".format(p1), horizontalalignment='left')
+    
+    plt.loglog([mid_x,mid_x*delta_x,mid_x,mid_x], [mid_y,mid_y*exp(p1*log(delta_x)),mid_y*exp(p1*log(delta_x)),mid_y])
     
     # assign a suggested new starting point for plotting the slope triangle
     return [mid_x, mid_y*exp(p1*log(delta_x))**1.5]
