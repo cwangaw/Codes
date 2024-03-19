@@ -152,7 +152,7 @@ def MakeQuadKochCurveGeo(fractal_level, scaling = 1, h_max = 0.2):
         geo.Append (["line", sgmnts[i][0], sgmnts[i][1]], bc="top")
     # calculate ell_e = length of the shortest edge
     #           ell_p = length (parimeter) of the fractal structure on the top
-    ell_e = 1/(3.0**fractal_level)
+    ell_e = scaling/(3.0**fractal_level)
 
     a = 2/3 + scaling
     b = (1-scaling)/3
@@ -449,7 +449,7 @@ def MakeQuadKochSurfaceGeo(fractal_level, scaling = 1, h_max = 0.2):
     geo = OCCGeometry(cube)
     mesh = Mesh(geo.GenerateMesh(maxh = h_max))
     
-    l = (1/16)**fractal_level
+    l = (scaling/3)**fractal_level
     
     a = 8/9 + 5*scaling*scaling/9
     b = (1-scaling*scaling)/9
@@ -501,7 +501,7 @@ def MakeMidQuadKochSurfaceGeo(fractal_level, h_max = 0.2):
     geo = OCCGeometry(cube)
     mesh = Mesh(geo.GenerateMesh(maxh = h_max))
     
-    l = (1/2)**fractal_level
+    l = (1/3)**fractal_level
     A_p = 2-(5/9)**fractal_level
     
     return mesh,l,A_p
@@ -552,7 +552,7 @@ def MakeOneFourthQuadKochSurfaceGeo(fractal_level, h_max = 0.2):
     geo = OCCGeometry(cube)
     mesh = Mesh(geo.GenerateMesh(maxh = h_max))
     
-    l = (1/16)**fractal_level
+    l = (1/4)**fractal_level
     A_p = (5/4)**fractal_level
     
     return mesh,l,A_p
