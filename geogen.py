@@ -560,7 +560,7 @@ def MakeOneFourthQuadKochSurfaceGeo(fractal_level, h_max = 0.2):
 if __name__ == "__main__":
     import netgen.gui
     
-    geotype = input("Type one of the fractal shapes (2d, 2dquad, 2dmidquad, 3d, 3dmid, 3dquad, 3dmidquad, 3d14quad): ")
+    geotype = input("Type one of the fractal shapes (2d, 2dquad, 2dmidquad, 3d, lshape, 3dmid, 3dquad, 3dmidquad, 3d14quad): ")
     
     fractal_level = int(input("Enter the number of refinement steps for the pre-fractal upper boundary: "))
     if fractal_level<0:
@@ -577,12 +577,17 @@ if __name__ == "__main__":
         h_max=1
         print("WARNING: Illegal h max! We use 1 as the default setting.")
     
-    mesh, l, A_p = MakeGeometry(geotype, fractal_level, scaling, h_max)
+    if geotype=="lshape":
+        mesh = MakeGeometry(geotype, fractal_level, scaling, h_max)
+    else:
+        mesh, l, A_p = MakeGeometry(geotype, fractal_level, scaling, h_max)
     
     print("geotype:", geotype)
     print("fractal level:", fractal_level)
     print("scaling:", scaling)
     print("h max:", h_max)
-    print("l:",l)
-    print("(d-1)-dim area of the fractal:", A_p)
+    if 'l' in locals():
+        print("l:",l)
+    if 'A_p' in locals():
+        print("(d-1)-dim area of the fractal:", A_p)
     Draw(mesh)
